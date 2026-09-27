@@ -27,10 +27,13 @@ var _settlers_label: Label
 var _buildings_label: Label
 var _palette_btns: Dictionary = {}
 var _demolish_btn: Button
+var _recruit_btn: Button
 var _prod_rows: VBoxContainer
 var _alerts_label: Label
 var _victory_banner: Label
 var _victory02_banner: Label
+var _victory03_banner: Label
+var _defeat_banner: Label
 var _message_label: Label
 
 
@@ -183,6 +186,10 @@ func _build_palette() -> void:
 	_demolish_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_demolish_btn.pressed.connect(_on_demolish_pressed)
 	vb.add_child(_demolish_btn)
+	_recruit_btn = _dark_button("Recluta (15 comida)")
+	_recruit_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_recruit_btn.pressed.connect(_on_recruit_pressed)
+	vb.add_child(_recruit_btn)
 
 
 func _build_production() -> void:
@@ -274,6 +281,20 @@ func _build_banners() -> void:
 	_victory02_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_victory02_banner.visible = false
 	vb.add_child(_victory02_banner)
+	_victory03_banner = Label.new()
+	_victory03_banner.text = "¡Victoria total! Centro enemigo destruido"
+	_victory03_banner.add_theme_font_size_override("font_size", 36)
+	_victory03_banner.add_theme_color_override("font_color", Color(0.5, 0.9, 1.0))
+	_victory03_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_victory03_banner.visible = false
+	vb.add_child(_victory03_banner)
+	_defeat_banner = Label.new()
+	_defeat_banner.text = "Derrota: la partida ha terminado"
+	_defeat_banner.add_theme_font_size_override("font_size", 36)
+	_defeat_banner.add_theme_color_override("font_color", Color(1.0, 0.35, 0.35))
+	_defeat_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_defeat_banner.visible = false
+	vb.add_child(_defeat_banner)
 
 
 # ---------- refresco por polling ----------
@@ -308,6 +329,8 @@ func _refresh() -> void:
 	_refresh_alerts(cap)
 	_victory_banner.visible = bool(GameState.victory)
 	_victory02_banner.visible = bool(GameState.victory02)
+	_victory03_banner.visible = bool(GameState.victory03)
+	_defeat_banner.visible = bool(GameState.defeat)
 	var msg := str(GameState.message)
 	_message_label.text = msg
 	_message_label.visible = msg != ""
@@ -445,6 +468,12 @@ func _on_demolish_pressed() -> void:
 	var bm := _bm()
 	if bm != null and bm.has_method("toggle_demolish"):
 		bm.call("toggle_demolish")
+
+
+func _on_recruit_pressed() -> void:
+	var err: String = Recruit.train()
+	if err != "":
+		GameState.message = err
 
 
 func _on_pause_pressed(id: String) -> void:

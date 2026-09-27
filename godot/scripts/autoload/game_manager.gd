@@ -14,6 +14,16 @@ func _ready() -> void:
 			"paused": false, "progress": 0.0, "blocked": false,
 			"hp": Economy.BUILDING_HP["centro"], "max_hp": Economy.BUILDING_HP["centro"],
 		})
+	if GameState.ai_buildings.is_empty():
+		GameState.ai_buildings.append({
+			"id": "ai_centro", "type": "centro",
+			"x": float(Economy.AI_BASE["x"]), "z": float(Economy.AI_BASE["z"]), "hp": 300.0,
+		})
+		var scene := get_tree().current_scene
+		if scene:
+			var node := AiBuildingNode.new()
+			node.setup(GameState.ai_buildings[0])
+			scene.add_child.call_deferred(node)
 
 func _physics_process(delta: float) -> void:
 	var dt: float = minf(delta, DT_CAP)
@@ -25,6 +35,7 @@ func _physics_process(delta: float) -> void:
 			var s := Settler.spawn(Vector3(randf_range(-2.0, 2.0), 0.0, 4.0 + randf_range(-2.0, 2.0)))
 			scene.add_child.call_deferred(s)
 	Production.tick(dt)
+	Combat.tick(dt)
 	_tick_growth(dt)
 	_tick_victory()
 
