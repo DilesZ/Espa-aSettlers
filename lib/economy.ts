@@ -10,7 +10,8 @@ export type BuildingType =
   | "granja"
   | "molino"
   | "panaderia"
-  | "pescador";
+  | "pescador"
+  | "torre";
 
 export const BUILDINGS: Record<
   BuildingType,
@@ -26,6 +27,7 @@ export const BUILDINGS: Record<
   molino: { nombre: "Molino", coste: { madera: 30, piedra: 15 }, color: "#e5e5e5", radio: 2.5 },
   panaderia: { nombre: "Panadería", coste: { madera: 30, piedra: 20 }, color: "#c08552", radio: 2.5 },
   pescador: { nombre: "Pescador (río)", coste: { madera: 15, piedra: 0 }, color: "#48cae4", radio: 2 },
+  torre: { nombre: "Torre defensiva", coste: { madera: 20, piedra: 15 }, color: "#6c757d", radio: 2 },
 };
 
 export type Resources = {
@@ -58,6 +60,28 @@ export const MAP_HALF = 30;
 export const WATER_X = 22;
 /** El pescador debe estar cerca del río. */
 export const FISH_MIN_X = 12;
+export const RECRUIT_COST = 15;
+export const RECRUIT_HP = 50;
+export const RECRUIT_DPS = 8;
+export const RAIDER_HP = 40;
+export const RAIDER_DPS = 5;
+export const TORRE_RANGE = 14;
+export const TORRE_DPS = 10;
+export const AI_BASE = { x: 16, z: -20 };
+
+export const BUILDING_HP: Record<BuildingType, number> = {
+  centro: 500,
+  lenador: 150,
+  cantera: 150,
+  casa: 150,
+  almacen: 200,
+  aserradero: 200,
+  granja: 180,
+  molino: 200,
+  panaderia: 200,
+  pescador: 150,
+  torre: 250,
+};
 export const BASE_CAP = 200;
 export const ALMACEN_BONUS = 100;
 export const CASA_COLONOS = 4;

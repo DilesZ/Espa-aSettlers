@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { BUILDINGS, RECIPES, WIN_PAN, WIN_TABLON, canAfford, storageCap } from "@/lib/economy";
 import type { BuildingType } from "@/lib/economy";
 import { deriveAlerts, useGame } from "@/store/game";
+import { ensureAudio, isMuted, setMuted } from "@/lib/audio";
 
-const PALETA: BuildingType[] = [
+const PALETA = [
   "lenador",
   "cantera",
   "casa",
@@ -14,7 +16,8 @@ const PALETA: BuildingType[] = [
   "molino",
   "panaderia",
   "pescador",
-];
+  "torre",
+] as unknown as BuildingType[];
 
 export default function HUD() {
   const resources = useGame((s) => s.resources);
@@ -31,6 +34,9 @@ export default function HUD() {
   const ghostError = useGame((s) => s.ghostError);
   const victory = useGame((s) => s.victory);
   const victory02 = useGame((s) => s.victory02);
+  const victory03 = useGame((s) => (s as unknown as { victory03?: boolean } | undefined)?.victory03);
+  const defeat = useGame((s) => (s as unknown as { defeat?: boolean } | undefined)?.defeat);
+  const [muted, setMutedState] = useState<boolean>(() => isMuted());
 
   const almacenes = buildings.filter((b) => b.type === "almacen").length;
   const cap = storageCap(almacenes);
@@ -55,10 +61,36 @@ export default function HUD() {
           Cap {cap}
         </span>
         <button
-          onClick={reset}
+          onClick={() => {
+            ensureAudio();
+            const nm = !muted;
+            setMuted(nm);
+            setMutedState(nm);
+          }}
           className="ml-auto rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+          title={muted ? "Activar sonido" : "Silenciar"}
+        >
+          {muted ? "🔇" : "🔊"}
+        </button>
+        <button
+          onClick={() => {
+            ensureAudio();
+            reset();
+          }}
+          className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
         >
           Reiniciar
+        </button>
+        <button
+          onClick={() => {
+            ensureAudio();
+            const train = (useGame as unknown as { getState: () => { trainRecruit?: () => void } }).getState().trainRecruit;
+            train?.();
+          }}
+          className="rounded bg-white/10 px-2 py-1 text-xs hover:bg-white/20"
+          title="Entrenar recluta (cuesta 15 de trigo)"
+        >
+          Entrenar recluta (15🌾)
         </button>
       </div>
 
@@ -75,6 +107,16 @@ export default function HUD() {
           próspero!
         </div>
       )}
+      {victory03 && (
+        <div className="rounded-lg border border-yellow-300/50 bg-yellow-900/60 px-3 py-2 text-xs font-semibold text-yellow-100">
+          ¡Victoria total! Centro enemigo destruido.
+        </div>
+      )}
+      {defeat && (
+        <div className="rounded-lg border border-red-400/40 bg-red-900/60 px-3 py-2 text-xs font-semibold text-red-100">
+          Derrota: tu Centro ha caído.
+        </div>
+      )}
 
       {/* 2) Paleta de construcción + 3) Demoler */}
       <div className="flex flex-wrap gap-1.5">
@@ -84,7 +126,10 @@ export default function HUD() {
           return (
             <button
               key={t}
-              onClick={() => select(active ? null : t)}
+              onClick={() => {
+                ensureAudio();
+                select(active ? null : t);
+              }}
               className={`rounded-md border px-2 py-1.5 text-left text-[11px] leading-tight ${
                 active
                   ? "border-yellow-300 bg-yellow-900/50"
@@ -102,7 +147,10 @@ export default function HUD() {
           );
         })}
         <button
-          onClick={toggleDemolish}
+          onClick={() => {
+            ensureAudio();
+            toggleDemolish();
+          }}
           className={`rounded-md border px-2 py-1.5 text-[11px] font-semibold ${
             demolish
               ? "border-red-400 bg-red-900/70 text-red-100"
@@ -125,11 +173,18 @@ export default function HUD() {
           </p>
         ) : (
           <ul className="flex max-h-32 flex-col gap-1 overflow-y-auto">
-            {productivos.map((b) => (
+            {productivos.map((b) => {
+              const { hp, maxHp } = (b as unknown as {hp?:number;maxHp?:number});
+              return (
               <li key={b.id} className="flex items-center gap-2 text-[11px]">
                 <span className="w-28 truncate" title={`#${b.id} (${b.x.toFixed(0)},${b.z.toFixed(0)})`}>
                   #{b.id} {BUILDINGS[b.type].nombre}
                 </span>
+                {hp != null && maxHp != null && (
+                  <span className="text-zinc-400" title="Puntos de vida">
+                    ❤ {Math.ceil(hp)}/{maxHp}
+                  </span>
+                )}
                 <div className="h-2 flex-1 overflow-hidden rounded bg-white/10">
                   <div
                     className={`h-full rounded ${b.blocked && !b.paused ? "bg-red-400" : "bg-green-400"}`}
@@ -139,13 +194,17 @@ export default function HUD() {
                 {b.paused && <span className="text-yellow-300">Pausado</span>}
                 {!b.paused && b.blocked && <span className="text-red-300">Bloq.</span>}
                 <button
-                  onClick={() => togglePause(b.id)}
+                  onClick={() => {
+                    ensureAudio();
+                    togglePause(b.id);
+                  }}
                   className="rounded bg-white/10 px-1.5 py-0.5 hover:bg-white/20"
                 >
                   {b.paused ? "Reanudar" : "Pausar"}
                 </button>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>
