@@ -1,0 +1,60 @@
+[gd_scene load_steps=8 format=3]
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+background_color = Color(0.043, 0.082, 0.149, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.7, 0.75, 0.85, 1)
+ambient_light_energy = 0.7
+tonemap_mode = 3
+glow_enabled = true
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+size = Vector2(64, 64)
+
+[sub_resource type="StandardMaterial3D" id="Mat_ground"]
+albedo_color = Color(0.11, 0.17, 0.1, 1)
+roughness = 1.0
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_river"]
+size = Vector2(10, 64)
+
+[sub_resource type="StandardMaterial3D" id="Mat_river"]
+transparency = 1
+albedo_color = Color(0.11, 0.31, 0.54, 0.85)
+roughness = 0.3
+metallic = 0.4
+
+[sub_resource type="BoxShape3D" id="BoxShape_ground"]
+size = Vector3(64, 1, 64)
+
+[node name="Main" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.552, 0, -0.828, -0.671, 0.587, -0.447, 0.486, 0.81, 0.324, 0, 0, 0)
+light_energy = 1.3
+shadow_enabled = true
+directional_shadow_max_distance = 100.0
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.707, 0, -0.707, -0.348, 0.871, -0.348, 0.616, 0.492, 0.616, 20, 16, 20)
+current = true
+fov = 50.0
+
+[node name="Ground" type="StaticBody3D" parent="."]
+
+[node name="Mesh" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("PlaneMesh_ground")
+surface_material_override/0 = SubResource("Mat_ground")
+
+[node name="Collision" type="CollisionShape3D" parent="Ground"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+shape = SubResource("BoxShape_ground")
+
+[node name="River" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0.05, 0)
+mesh = SubResource("PlaneMesh_river")
+surface_material_override/0 = SubResource("Mat_river")
