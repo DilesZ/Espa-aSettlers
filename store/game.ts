@@ -2,14 +2,23 @@
 
 import { create } from "zustand";
 import {
+  AI_BASE,
   BUILDINGS,
+  BUILDING_HP,
   BuildingType,
   CASA_COLONOS,
   MAX_SETTLERS,
   Placed,
+  RAIDER_DPS,
+  RAIDER_HP,
   RECIPES,
+  RECRUIT_COST,
+  RECRUIT_DPS,
+  RECRUIT_HP,
   Recipe,
   Resources,
+  TORRE_DPS,
+  TORRE_RANGE,
   WIN_MADERA,
   WIN_PIEDRA,
   WIN_PAN,
@@ -23,6 +32,8 @@ import {
   placementError,
   storageCap,
 } from "@/lib/economy";
+import { FOG_N, computeFog, type Viewer } from "@/lib/fog";
+import { playSound } from "@/lib/audio";
 
 export type Building = {
   id: number;
@@ -32,7 +43,13 @@ export type Building = {
   paused: boolean;
   progress: number;
   blocked: boolean;
+  hp: number;
+  maxHp: number;
+  cd: number;
 };
+export type AiBuilding = { id: number; type: BuildingType; x: number; z: number; hp: number };
+export type Raider = { id: number; x: number; z: number; hp: number; tx: number; tz: number; timer: number };
+export type Recruit = { id: number; x: number; z: number; hp: number; tx: number; tz: number; timer: number };
 export type Settler = {
   id: number;
   x: number;
@@ -80,13 +97,27 @@ type GameState = {
   message: string | null;
   victory: boolean;
   victory02: boolean;
+  victory03: boolean;
+  defeat: boolean;
   growTimer: number;
+  // Fase 03: rival, combate, niebla
+  raiders: Raider[];
+  recruits: Recruit[];
+  aiBuildings: AiBuilding[];
+  aiQueue: number;
+  aiBuildTimer: number;
+  aiRaidTimer: number;
+  elapsed: number;
+  fog: number[];
+  fogVersion: number;
+  fogTimer: number;
   select: (t: BuildingType | null) => void;
   toggleDemolish: () => void;
   setGhost: (x: number, z: number) => void;
   place: (x: number, z: number) => void;
   clickBuilding: (id: number) => void;
   togglePause: (id: number) => void;
+  trainRecruit: () => void;
   tick: (dt: number) => void;
   reset: () => void;
 };
@@ -156,6 +187,45 @@ function stepSettler(s: Settler, nodes: Node[], dt: number): Settler {
   }
 }
 
+function moveToward(x: number, z: number, tx: number, tz: number, step: number) {
+  const dx = tx - x;
+  const dz = tz - z;
+  const d = Math.hypot(dx, dz);
+  if (d < 0.5) return { arrived: true, x: tx, z: tz };
+  return { arrived: false, x: x + (dx / d) * Math.min(step, d), z: z + (dz / d) * Math.min(step, d) };
+}
+
+/** Puestos de expansión IA en espiral alrededor de su base. */
+const AI_QUEUE: BuildingType[] = [
+  "granja",
+  "aserradero",
+  "casa",
+  "torre",
+  "molino",
+  "panaderia",
+  "casa",
+  "torre",
+  "granja",
+  "aserradero",
+];
+const AI_OFFSETS: [number, number][] = [
+  [7, 0],
+  [-7, 2],
+  [0, 7],
+  [2, -7],
+  [8, 6],
+  [-6, -6],
+  [6, -6],
+  [-8, 6],
+  [0, 10],
+  [10, -2],
+];
+
+function mkBuilding(type: BuildingType, x: number, z: number): Building {
+  const maxHp = BUILDING_HP[type];
+  return { id: nextId++, type, x, z, paused: false, progress: 0, blocked: false, hp: maxHp, maxHp, cd: 0 };
+}
+
 function hasInputs(res: Resources, r: Recipe): boolean {
   return (Object.keys(r.inputs) as (keyof Resources)[]).every((k) => res[k] >= (r.inputs[k] ?? 0));
 }
@@ -191,7 +261,7 @@ export function deriveAlerts(
 export const useGame = create<GameState>((set, get) => ({
   resources: { ...emptyResources(), madera: 30, piedra: 15, comida: 10 },
   colonos: 6,
-  buildings: [{ id: nextId++, type: "centro", x: 0, z: 0, paused: false, progress: 0, blocked: false }],
+  buildings: [mkBuilding("centro", 0, 0)],
   settlers: initialSettlers,
   nodes: initialNodes,
   stats: { tablon: 0, pan: 0 },
@@ -199,10 +269,22 @@ export const useGame = create<GameState>((set, get) => ({
   demolish: false,
   ghost: null,
   ghostError: null,
-  message: "Fase 02: encadena Aserradero y Panadería. Objetivo: 20 tablones + 15 pan.",
+  message: "Fase 03: hay un rival al noreste. Objetivo final: destruye su Centro.",
   victory: false,
   victory02: false,
+  victory03: false,
+  defeat: false,
   growTimer: 30,
+  raiders: [],
+  recruits: [],
+  aiBuildings: [{ id: nextId++, type: "centro", x: AI_BASE.x, z: AI_BASE.z, hp: 300 }],
+  aiQueue: 0,
+  aiBuildTimer: 35,
+  aiRaidTimer: 45,
+  elapsed: 0,
+  fog: new Array(FOG_N * FOG_N).fill(0),
+  fogVersion: 0,
+  fogTimer: 0,
 
   select: (t) => set({ selected: t, demolish: false, ghost: null, ghostError: null }),
   toggleDemolish: () => set((s) => ({ demolish: !s.demolish, selected: null, ghost: null })),
@@ -235,7 +317,8 @@ export const useGame = create<GameState>((set, get) => ({
       set({ message: `Sin recursos para ${BUILDINGS[selected].nombre}.` });
       return;
     }
-    const b: Building = { id: nextId++, type: selected, x, z, paused: false, progress: 0, blocked: false };
+    const b: Building = mkBuilding(selected, x, z);
+    playSound("build");
     set({
       resources: payCost(resources, selected),
       buildings: [...buildings, b],
@@ -272,6 +355,35 @@ export const useGame = create<GameState>((set, get) => ({
       buildings: s.buildings.map((b) => (b.id === id ? { ...b, paused: !b.paused } : b)),
     })),
 
+  trainRecruit: () => {
+    const { resources, colonos, buildings } = get();
+    const casas = buildings.filter((b) => b.type === "casa").length;
+    if (colonos >= Math.min(housingCap(casas), MAX_SETTLERS)) {
+      set({ message: "Sin vivienda libre para reclutas. Construye casas." });
+      return;
+    }
+    if (resources.comida < RECRUIT_COST) {
+      set({ message: `Sin comida para reclutar (cuesta ${RECRUIT_COST}).` });
+      return;
+    }
+    playSound("click");
+    const r: Recruit = {
+      id: nextId++,
+      x: (Math.random() - 0.5) * 4,
+      z: 4 + (Math.random() - 0.5) * 4,
+      hp: RECRUIT_HP,
+      tx: 0,
+      tz: 4,
+      timer: 0,
+    };
+    set({
+      resources: { ...resources, comida: resources.comida - RECRUIT_COST },
+      recruits: [...get().recruits, r],
+      colonos: colonos + 1,
+      message: "Recluta entrenado: buscará enemigos automáticamente.",
+    });
+  },
+
   tick: (dt) => {
     const st = get();
     const capped = Math.min(dt, 0.1);
@@ -288,6 +400,8 @@ export const useGame = create<GameState>((set, get) => ({
       }
       return ns;
     });
+
+    if (madera + piedra > 0) playSound("coin");
 
     // 2) Producción
     const almacenes = st.buildings.filter((b) => b.type === "almacen").length;
@@ -340,38 +454,214 @@ export const useGame = create<GameState>((set, get) => ({
 
     const won = st.victory || isVictory(res);
     const won02 = st.victory02 || isVictory02(stats);
+    if ((won && !st.victory) || (won02 && !st.victory02)) playSound("win");
+
+    // 4) Torres propias: fuego automático al raider más cercano
+    let raiders = st.raiders.map((r) => ({ ...r }));
+    let buildingsHP = buildings.map((b) => ({ ...b }));
+    for (const t of buildingsHP) {
+      if (t.type !== "torre" || t.paused) continue;
+      t.cd -= capped;
+      if (t.cd > 0) continue;
+      const target = raiders
+        .filter((r) => Math.hypot(r.x - t.x, r.z - t.z) <= TORRE_RANGE)
+        .sort((a, b) => Math.hypot(a.x - t.x, a.z - t.z) - Math.hypot(b.x - t.x, b.z - t.z))[0];
+      if (target) {
+        target.hp -= TORRE_DPS * 1;
+        t.cd = 1;
+        playSound("hit");
+      }
+    }
+    raiders = raiders.filter((r) => r.hp > 0);
+
+    // 5) Reclutas: buscan enemigo (raider > edificios IA) y atacan
+    let aiBuildings = st.aiBuildings.map((b) => ({ ...b }));
+    const recruits = st.recruits.map((u) => ({ ...u }));
+    const deadRecruits = new Set<number>();
+    for (const u of recruits) {
+      const foe = raiders
+        .slice()
+        .sort((a, b) => Math.hypot(a.x - u.x, a.z - u.z) - Math.hypot(b.x - u.x, b.z - u.z))[0];
+      const targetB = aiBuildings
+        .slice()
+        .sort((a, b) => Math.hypot(a.x - u.x, a.z - u.z) - Math.hypot(b.x - u.x, b.z - u.z))[0];
+      const tx = foe ? foe.x : (targetB?.x ?? u.x);
+      const tz = foe ? foe.z : (targetB?.z ?? u.z);
+      const m = moveToward(u.x, u.z, tx, tz, 6 * capped);
+      u.x = m.x;
+      u.z = m.z;
+      if (m.arrived) {
+        if (foe && Math.hypot(foe.x - u.x, foe.z - u.z) < 2) {
+          foe.hp -= RECRUIT_DPS * capped;
+          playSound("hit");
+        } else if (!foe && targetB && Math.hypot(targetB.x - u.x, targetB.z - u.z) < 3) {
+          targetB.hp -= RECRUIT_DPS * capped;
+          playSound("hit");
+        }
+      }
+      void u.tx;
+      void u.tz;
+    }
+    raiders = raiders.filter((r) => r.hp > 0);
+
+    // 6) Raiders IA: van al edificio propio más cercano y lo golpean
+    for (const r of raiders) {
+      const nearRec = recruits
+        .filter((u) => !deadRecruits.has(u.id))
+        .sort((a, b) => Math.hypot(a.x - r.x, a.z - r.z) - Math.hypot(b.x - r.x, b.z - r.z))[0];
+      const nearB = buildingsHP
+        .slice()
+        .sort((a, b) => Math.hypot(a.x - r.x, a.z - r.z) - Math.hypot(b.x - r.x, b.z - r.z))[0];
+      const dRec = nearRec ? Math.hypot(nearRec.x - r.x, nearRec.z - r.z) : Infinity;
+      const dB = nearB ? Math.hypot(nearB.x - r.x, nearB.z - r.z) : Infinity;
+      if (dRec < dB && nearRec) {
+        const m = moveToward(r.x, r.z, nearRec.x, nearRec.z, 5 * capped);
+        r.x = m.x;
+        r.z = m.z;
+        if (m.arrived && dRec < 2) {
+          nearRec.hp -= RAIDER_DPS * capped;
+          if (nearRec.hp <= 0) deadRecruits.add(nearRec.id);
+        }
+      } else if (nearB) {
+        const m = moveToward(r.x, r.z, nearB.x, nearB.z, 5 * capped);
+        r.x = m.x;
+        r.z = m.z;
+        if (m.arrived && dB < 2.5) {
+          nearB.hp -= RAIDER_DPS * capped;
+          playSound("hit");
+        }
+      }
+      void r.tx;
+      void r.tz;
+      void r.timer;
+    }
+    const recruitsAlive = recruits.filter((u) => u.hp > 0 && !deadRecruits.has(u.id));
+    const recruitDeaths = recruits.length - recruitsAlive.length;
+    buildingsHP = buildingsHP.filter((b) => b.hp > 0);
+    aiBuildings = aiBuildings.filter((b) => b.hp > 0);
+
+    // Derrota / victoria total
+    const centroAlive = buildingsHP.some((b) => b.type === "centro");
+    const aiCentroAlive = aiBuildings.some((b) => b.type === "centro");
+    const defeat =
+      st.defeat ||
+      !centroAlive ||
+      (aiBuildings.length >= 10 && !won02 && !st.victory03);
+    const won03 = st.victory03 || !aiCentroAlive;
+    if (won03 && !st.victory03) playSound("win");
+
+    // 7) IA: construye cada 35s y envía raiders cada 45s
+    const elapsed = st.elapsed + capped;
+    let aiQueue = st.aiQueue;
+    let aiBuildTimer = st.aiBuildTimer - capped;
+    if (aiBuildTimer <= 0 && aiQueue < AI_QUEUE.length) {
+      aiBuildTimer = 35;
+      const [ox, oz] = AI_OFFSETS[aiQueue % AI_OFFSETS.length];
+      const type = AI_QUEUE[aiQueue % AI_QUEUE.length];
+      aiBuildings = [
+        ...aiBuildings,
+        { id: nextId++, type, x: AI_BASE.x + ox, z: AI_BASE.z + oz, hp: BUILDING_HP[type] },
+      ];
+      aiQueue += 1;
+    }
+    let aiRaidTimer = st.aiRaidTimer - capped;
+    let raidAlarm = false;
+    const raidCap = Math.min(3 + Math.floor(elapsed / 120), 8);
+    if (aiRaidTimer <= 0) {
+      aiRaidTimer = 45;
+      if (raiders.length < raidCap) {
+        raiders = [
+          ...raiders,
+          { id: nextId++, x: AI_BASE.x, z: AI_BASE.z, hp: RAIDER_HP, tx: 0, tz: 0, timer: 0 },
+        ];
+        playSound("alarm");
+        raidAlarm = true;
+      }
+    }
+
+    // 8) Niebla cada 0.5s
+    let fog = st.fog;
+    let fogVersion = st.fogVersion;
+    let fogTimer = st.fogTimer - capped;
+    if (fogTimer <= 0) {
+      fogTimer = 0.5;
+      const viewers: Viewer[] = [
+        ...buildingsHP.map((b) => ({
+          x: b.x,
+          z: b.z,
+          range: b.type === "torre" ? 16 : 12,
+        })),
+        ...settlers.map((s) => ({ x: s.x, z: s.z, range: 8 })),
+        ...recruitsAlive.map((u) => ({ x: u.x, z: u.z, range: 8 })),
+      ];
+      fog = computeFog(fog.length === FOG_N * FOG_N ? fog : new Array(FOG_N * FOG_N).fill(0), viewers);
+      fogVersion += 1;
+    }
+
     set({
       settlers,
       resources: { ...res, comida: food },
-      buildings,
+      buildings: buildingsHP,
       stats,
-      colonos,
+      colonos: colonos - recruitDeaths,
+      recruits: recruitsAlive,
+      raiders,
+      aiBuildings,
+      aiQueue,
+      aiBuildTimer,
+      aiRaidTimer,
+      elapsed,
+      fog,
+      fogVersion,
+      fogTimer,
       growTimer,
       victory: won,
       victory02: won02,
-      message: won02
-        ? `¡Victoria Fase 02! ${WIN_TABLON} tablones + ${WIN_PAN} pan producidos.`
-        : won
-          ? `¡Victoria del slice! ${WIN_MADERA} madera + ${WIN_PIEDRA} piedra.`
-          : st.message,
+      victory03: won03,
+      defeat,
+      message: won03
+        ? "¡Victoria total! Centro enemigo destruido."
+        : defeat && !st.defeat
+          ? aiBuildings.length >= 10
+            ? "Derrota: la IA alcanzó Tier 3 antes que tú."
+            : "Derrota: tu Centro ha caído."
+          : raidAlarm
+            ? "¡Incursión enemiga en camino!"
+            : won02
+            ? `¡Victoria Fase 02! ${WIN_TABLON} tablones + ${WIN_PAN} pan producidos.`
+            : won
+              ? `¡Victoria del slice! ${WIN_MADERA} madera + ${WIN_PIEDRA} piedra.`
+              : get().message,
     });
   },
 
   reset: () =>
     set({
       resources: { ...emptyResources(), madera: 30, piedra: 15, comida: 10 },
-      buildings: [{ id: nextId++, type: "centro", x: 0, z: 0, paused: false, progress: 0, blocked: false }],
+      buildings: [mkBuilding("centro", 0, 0)],
       settlers: spawnSettlers(6),
       nodes: initialNodes,
       stats: { tablon: 0, pan: 0 },
       colonos: 6,
       victory: false,
       victory02: false,
+      victory03: false,
+      defeat: false,
       selected: null,
       demolish: false,
       ghost: null,
       growTimer: 30,
-      message: "Partida reiniciada. Objetivo Fase 02: 20 tablones + 15 pan.",
+      raiders: [],
+      recruits: [],
+      aiBuildings: [{ id: nextId++, type: "centro", x: AI_BASE.x, z: AI_BASE.z, hp: 300 }],
+      aiQueue: 0,
+      aiBuildTimer: 35,
+      aiRaidTimer: 45,
+      elapsed: 0,
+      fog: new Array(FOG_N * FOG_N).fill(0),
+      fogVersion: 0,
+      fogTimer: 0,
+      message: "Partida reiniciada. Hay un rival al noreste: destruye su Centro.",
     }),
 }));
 
