@@ -1,0 +1,105 @@
+[gd_scene load_steps=18 format=3]
+
+[ext_resource type="Script" path="res://scripts/world/rts_camera.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/world/build_manager.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/world/world_builder.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/ui/hud.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/ui/minimap.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/systems/ai_controller.gd" id="6"]
+[ext_resource type="Script" path="res://scripts/systems/day_night.gd" id="7"]
+[ext_resource type="Script" path="res://scripts/systems/atmosphere.gd" id="8"]
+[ext_resource type="Script" path="res://scripts/systems/fog_of_war.gd" id="9"]
+[ext_resource type="Script" path="res://scripts/systems/benchmark.gd" id="10"]
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+background_color = Color(0.043, 0.082, 0.149, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.7, 0.75, 0.85, 1)
+ambient_light_energy = 0.7
+tonemap_mode = 3
+glow_enabled = true
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+size = Vector2(64, 64)
+
+[sub_resource type="StandardMaterial3D" id="Mat_ground"]
+albedo_color = Color(0.11, 0.17, 0.1, 1)
+roughness = 1.0
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_river"]
+size = Vector2(10, 64)
+
+[sub_resource type="StandardMaterial3D" id="Mat_river"]
+transparency = 1
+albedo_color = Color(0.11, 0.31, 0.54, 0.85)
+roughness = 0.3
+metallic = 0.4
+
+[sub_resource type="BoxShape3D" id="BoxShape_ground"]
+size = Vector3(64, 1, 64)
+
+[node name="Main" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.552, 0, -0.828, -0.671, 0.587, -0.447, 0.486, 0.81, 0.324, 0, 0, 0)
+light_energy = 1.3
+shadow_enabled = true
+directional_shadow_max_distance = 100.0
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.707, 0, -0.707, -0.348, 0.871, -0.348, 0.616, 0.492, 0.616, 20, 16, 20)
+current = true
+fov = 50.0
+script = ExtResource("1")
+
+[node name="Ground" type="StaticBody3D" parent="."]
+
+[node name="Mesh" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("PlaneMesh_ground")
+surface_material_override/0 = SubResource("Mat_ground")
+
+[node name="Collision" type="CollisionShape3D" parent="Ground"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+shape = SubResource("BoxShape_ground")
+
+[node name="River" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0.05, 0)
+mesh = SubResource("PlaneMesh_river")
+surface_material_override/0 = SubResource("Mat_river")
+
+[node name="WorldBuilder" type="Node3D" parent="."]
+script = ExtResource("3")
+
+[node name="BuildManager" type="Node3D" parent="."]
+script = ExtResource("2")
+
+[node name="AiController" type="Node" parent="."]
+script = ExtResource("6")
+
+[node name="DayNight" type="Node" parent="."]
+script = ExtResource("7")
+
+[node name="Atmosphere" type="Node" parent="."]
+script = ExtResource("8")
+
+[node name="FogOfWar" type="Node" parent="."]
+script = ExtResource("9")
+
+[node name="Benchmark" type="Node" parent="."]
+script = ExtResource("10")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("4")
+
+[node name="Minimap" type="Control" parent="HUD"]
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -148.0
+offset_top = 44.0
+offset_right = -8.0
+offset_bottom = 184.0
+script = ExtResource("5")
