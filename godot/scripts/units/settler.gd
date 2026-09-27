@@ -218,6 +218,7 @@ func _deliver() -> void:
 	elif carry == "piedra":
 		GameState.resources["piedra"] = float(GameState.resources.get("piedra", 0.0)) + STONE_YIELD
 	GameState.resources_changed.emit()
+	AudioManager.play("coin")
 	carry = ""
 	_carry_mesh.visible = false
 	state = State.IDLE

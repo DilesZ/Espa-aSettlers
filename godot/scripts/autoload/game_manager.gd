@@ -63,9 +63,11 @@ func _tick_victory() -> void:
 	if not GameState.victory and Economy.is_victory(GameState.resources):
 		GameState.victory = true
 		_set_message("¡Victoria del slice! %d madera + %d piedra." % [Economy.WIN_MADERA, Economy.WIN_PIEDRA])
+		AudioManager.play("win")
 	if not GameState.victory02 and Economy.is_victory02(GameState.stats):
 		GameState.victory02 = true
 		_set_message("¡Victoria Fase 02! %d tablones + %d pan producidos." % [Economy.WIN_TABLON, Economy.WIN_PAN])
+		AudioManager.play("win")
 
 
 func _set_message(text: String) -> void:

@@ -15,6 +15,7 @@ boot_splash/bg_color=Color(0.043, 0.082, 0.149, 1)
 
 GameState="*res://scripts/autoload/game_state.gd"
 GameManager="*res://scripts/autoload/game_manager.gd"
+AudioManager="*res://scripts/autoload/audio_manager.gd"
 
 [display]
 

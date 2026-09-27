@@ -85,6 +85,7 @@ func _do_raid() -> void:
 			float(Economy.AI_BASE.get("z", -20.0)) + sin(ang) * r
 		)
 		_spawn_raider(pos)
+		AudioManager.play("alarm")
 
 
 ## Crea un raider: Raider.spawn(pos) si el script paralelo existe, si no

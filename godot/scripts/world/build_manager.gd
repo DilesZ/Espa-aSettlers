@@ -147,6 +147,7 @@ func _try_place(x: float, z: float) -> void:
 	}
 	GameState.buildings.append(b)
 	GameState.buildings_changed.emit()
+	AudioManager.play("build")
 	var node := BuildingNode.new()
 	add_child(node)
 	node.setup(b)

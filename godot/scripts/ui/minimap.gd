@@ -13,6 +13,8 @@ const BG := Color(0.07, 0.23, 0.16)
 const RIVER := Color(0.15, 0.45, 0.85)
 const SETTLER := Color(0.95, 0.85, 0.25)
 const FALLBACK := Color(0.80, 0.80, 0.80)
+const FOG_HIDDEN := Color(0, 0, 0, 0.85)
+const FOG_EXPLORED := Color(0, 0, 0, 0.4)
 
 var _accum := 0.0
 
@@ -52,6 +54,7 @@ func _draw() -> void:
 		draw_rect(Rect2(x0, 0.0, size.x - x0, size.y), RIVER, true)
 	var gs: Node = get_node_or_null("/root/GameState")
 	if gs != null:
+		_draw_fog(gs)
 		for b in (gs.get("buildings") as Array):
 			var bd: Dictionary = b
 			var t := str(bd.get("type", ""))
@@ -64,6 +67,25 @@ func _draw() -> void:
 		for s in (gs.get("settlers") as Array):
 			draw_circle(_settler_pos(s), 2.0, SETTLER)
 	draw_rect(r, Color(0, 0, 0, 0.6), false, 1.0)
+
+
+func _draw_fog(gs: Node) -> void:
+	# Overlay por celda 32x32: 0=inexplorado (oscuro), 1=explorado (semi),
+	# 2=visible (sin overlay). Se dibuja antes que edificios/colonos.
+	var fog: PackedInt32Array = gs.get("fog")
+	if fog.size() != 32 * 32:
+		return
+	if size.x <= 0.0 or size.y <= 0.0:
+		return
+	var cw := size.x / 32.0
+	var ch := size.y / 32.0
+	for cz in range(32):
+		for cx in range(32):
+			var v := int(fog[cz * 32 + cx])
+			if v == 2:
+				continue
+			var col := FOG_HIDDEN if v == 0 else FOG_EXPLORED
+			draw_rect(Rect2(Vector2(cx * cw, cz * ch), Vector2(cw + 0.5, ch + 0.5)), col, true)
 
 
 func _settler_pos(s: Variant) -> Vector2:
