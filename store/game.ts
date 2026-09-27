@@ -4,17 +4,35 @@ import { create } from "zustand";
 import {
   BUILDINGS,
   BuildingType,
+  CASA_COLONOS,
+  MAX_SETTLERS,
   Placed,
+  RECIPES,
+  Recipe,
   Resources,
   WIN_MADERA,
   WIN_PIEDRA,
+  WIN_PAN,
+  WIN_TABLON,
   canAfford,
+  emptyResources,
+  housingCap,
   isVictory,
+  isVictory02,
   payCost,
   placementError,
+  storageCap,
 } from "@/lib/economy";
 
-export type Building = { id: number; type: BuildingType; x: number; z: number };
+export type Building = {
+  id: number;
+  type: BuildingType;
+  x: number;
+  z: number;
+  paused: boolean;
+  progress: number;
+  blocked: boolean;
+};
 export type Settler = {
   id: number;
   x: number;
@@ -46,20 +64,29 @@ const initialNodes: Node[] = [
   })),
 ];
 
+export type Alert = { kind: "full" | "workers" | "blocked"; text: string };
+
 type GameState = {
   resources: Resources;
   colonos: number;
   buildings: Building[];
   settlers: Settler[];
   nodes: Node[];
+  stats: { tablon: number; pan: number };
   selected: BuildingType | null;
+  demolish: boolean;
   ghost: { x: number; z: number } | null;
   ghostError: string | null;
   message: string | null;
   victory: boolean;
+  victory02: boolean;
+  growTimer: number;
   select: (t: BuildingType | null) => void;
+  toggleDemolish: () => void;
   setGhost: (x: number, z: number) => void;
   place: (x: number, z: number) => void;
+  clickBuilding: (id: number) => void;
+  togglePause: (id: number) => void;
   tick: (dt: number) => void;
   reset: () => void;
 };
@@ -93,7 +120,6 @@ function stepSettler(s: Settler, nodes: Node[], dt: number): Settler {
       if (s.timer > 0) return { ...s, timer: s.timer - dt };
       const tree = nodes.find((n) => n.kind === "tree" && n.amount > 0);
       const rock = nodes.find((n) => n.kind === "rock" && n.amount > 0);
-      // Alterna madera/piedra según lo que falte para la victoria
       const wantStone = rock && Math.random() < 0.4;
       const target = wantStone ? rock : tree;
       if (!target) return { ...s, timer: 1 };
@@ -130,19 +156,56 @@ function stepSettler(s: Settler, nodes: Node[], dt: number): Settler {
   }
 }
 
+function hasInputs(res: Resources, r: Recipe): boolean {
+  return (Object.keys(r.inputs) as (keyof Resources)[]).every((k) => res[k] >= (r.inputs[k] ?? 0));
+}
+
+function clampToCap(res: Resources, cap: number): { res: Resources; full: boolean } {
+  const out = { ...res };
+  let full = false;
+  for (const k of Object.keys(out) as (keyof Resources)[]) {
+    if (out[k] > cap) {
+      out[k] = cap;
+      full = true;
+    }
+  }
+  return { res: out, full };
+}
+
+export function deriveAlerts(
+  buildings: Building[],
+  colonos: number,
+  capFull: boolean,
+): Alert[] {
+  const alerts: Alert[] = [];
+  const need = buildings.reduce((a, b) => a + (RECIPES[b.type]?.workers ?? 0), 0);
+  if (need > colonos)
+    alerts.push({ kind: "workers", text: `Sin transportistas: ${need} puestos, ${colonos} colonos. Construye casas.` });
+  if (capFull) alerts.push({ kind: "full", text: "Almacén lleno: amplía con almacenes." });
+  const blocked = buildings.filter((b) => b.blocked && !b.paused);
+  if (blocked.length > 0)
+    alerts.push({ kind: "blocked", text: `Producción bloqueada: ${blocked.map((b) => BUILDINGS[b.type].nombre).join(", ")}.` });
+  return alerts;
+}
+
 export const useGame = create<GameState>((set, get) => ({
-  resources: { madera: 30, piedra: 15, comida: 10 },
+  resources: { ...emptyResources(), madera: 30, piedra: 15, comida: 10 },
   colonos: 6,
-  buildings: [{ id: nextId++, type: "centro", x: 0, z: 0 }],
+  buildings: [{ id: nextId++, type: "centro", x: 0, z: 0, paused: false, progress: 0, blocked: false }],
   settlers: initialSettlers,
   nodes: initialNodes,
+  stats: { tablon: 0, pan: 0 },
   selected: null,
+  demolish: false,
   ghost: null,
   ghostError: null,
-  message: "Selecciona un edificio y haz clic en el terreno. Objetivo: 50 madera + 30 piedra.",
+  message: "Fase 02: encadena Aserradero y Panadería. Objetivo: 20 tablones + 15 pan.",
   victory: false,
+  victory02: false,
+  growTimer: 30,
 
-  select: (t) => set({ selected: t, ghost: null, ghostError: null }),
+  select: (t) => set({ selected: t, demolish: false, ghost: null, ghostError: null }),
+  toggleDemolish: () => set((s) => ({ demolish: !s.demolish, selected: null, ghost: null })),
 
   setGhost: (x, z) => {
     const { selected, buildings } = get();
@@ -172,7 +235,7 @@ export const useGame = create<GameState>((set, get) => ({
       set({ message: `Sin recursos para ${BUILDINGS[selected].nombre}.` });
       return;
     }
-    const b: Building = { id: nextId++, type: selected, x, z };
+    const b: Building = { id: nextId++, type: selected, x, z, paused: false, progress: 0, blocked: false };
     set({
       resources: payCost(resources, selected),
       buildings: [...buildings, b],
@@ -183,14 +246,41 @@ export const useGame = create<GameState>((set, get) => ({
     });
   },
 
+  clickBuilding: (id) => {
+    const { demolish, buildings, resources } = get();
+    if (!demolish) return;
+    const b = buildings.find((x) => x.id === id);
+    if (!b || b.type === "centro") {
+      set({ message: "El Centro Urbano no se puede demoler." });
+      return;
+    }
+    const c = BUILDINGS[b.type].coste;
+    set({
+      buildings: buildings.filter((x) => x.id !== id),
+      resources: {
+        ...resources,
+        madera: resources.madera + Math.floor(c.madera / 2),
+        piedra: resources.piedra + Math.floor(c.piedra / 2),
+      },
+      message: `${BUILDINGS[b.type].nombre} demolido (50% devuelto).`,
+      demolish: false,
+    });
+  },
+
+  togglePause: (id) =>
+    set((s) => ({
+      buildings: s.buildings.map((b) => (b.id === id ? { ...b, paused: !b.paused } : b)),
+    })),
+
   tick: (dt) => {
-    const { settlers, nodes, resources, victory } = get();
+    const st = get();
     const capped = Math.min(dt, 0.1);
+
+    // 1) Recolectores
     let madera = 0;
     let piedra = 0;
-    const next = settlers.map((s) => {
-      const ns = stepSettler(s, nodes, capped);
-      // Entrega al llegar al centro
+    const next = st.settlers.map((s) => {
+      const ns = stepSettler(s, st.nodes, capped);
       if (s.state === "return" && Math.hypot(ns.x - 0, ns.z - 2) < 0.5 && s.carry) {
         if (s.carry === "madera") madera += 5;
         else piedra += 4;
@@ -198,31 +288,92 @@ export const useGame = create<GameState>((set, get) => ({
       }
       return ns;
     });
-    const res = {
-      madera: resources.madera + madera,
-      piedra: resources.piedra + piedra,
-      comida: resources.comida,
+
+    // 2) Producción
+    const almacenes = st.buildings.filter((b) => b.type === "almacen").length;
+    const cap = storageCap(almacenes);
+    let res: Resources = {
+      ...st.resources,
+      madera: st.resources.madera + madera,
+      piedra: st.resources.piedra + piedra,
     };
-    const won = victory || isVictory(res);
+    let tablonMade = 0;
+    let panMade = 0;
+    // Workers: se asignan por orden de construcción
+    let freeWorkers = st.colonos;
+    const buildings = st.buildings.map((b) => {
+      const recipe = RECIPES[b.type];
+      if (!recipe) return b;
+      if (freeWorkers < recipe.workers) return { ...b, blocked: false };
+      freeWorkers -= recipe.workers;
+      if (b.paused) return { ...b, progress: 0, blocked: false };
+      if (!hasInputs(res, recipe)) return { ...b, progress: 0, blocked: true };
+      const progress = b.progress + capped / recipe.time;
+      if (progress < 1) return { ...b, progress, blocked: false };
+      // Completa tanda
+      for (const k of Object.keys(recipe.inputs) as (keyof Resources)[]) res[k] -= recipe.inputs[k] ?? 0;
+      for (const k of Object.keys(recipe.outputs) as (keyof Resources)[]) res[k] += recipe.outputs[k] ?? 0;
+      if (recipe.outputs.tablon) tablonMade += recipe.outputs.tablon;
+      if (recipe.outputs.pan) panMade += recipe.outputs.pan;
+      return { ...b, progress: 0, blocked: false };
+    });
+
+    const clamped = clampToCap(res, cap);
+    res = clamped.res;
+    const stats = { tablon: st.stats.tablon + tablonMade, pan: st.stats.pan + panMade };
+
+    // 3) Crecimiento: +1 colono cada 60s si hay comida y vivienda
+    const casas = st.buildings.filter((b) => b.type === "casa").length;
+    const hcap = Math.min(housingCap(casas), MAX_SETTLERS);
+    let colonos = st.colonos;
+    let settlers = next;
+    let growTimer = st.growTimer - capped;
+    let food = res.comida;
+    if (growTimer <= 0) {
+      growTimer = 60;
+      if (colonos < hcap && food >= 10) {
+        food -= 10;
+        colonos += 1;
+        settlers = [...next, ...spawnSettlers(1)];
+      }
+    }
+
+    const won = st.victory || isVictory(res);
+    const won02 = st.victory02 || isVictory02(stats);
     set({
-      settlers: next,
-      resources: res,
+      settlers,
+      resources: { ...res, comida: food },
+      buildings,
+      stats,
+      colonos,
+      growTimer,
       victory: won,
-      message: won
-        ? `¡Victoria del slice! ${WIN_MADERA} madera + ${WIN_PIEDRA} piedra conseguidos.`
-        : get().message,
+      victory02: won02,
+      message: won02
+        ? `¡Victoria Fase 02! ${WIN_TABLON} tablones + ${WIN_PAN} pan producidos.`
+        : won
+          ? `¡Victoria del slice! ${WIN_MADERA} madera + ${WIN_PIEDRA} piedra.`
+          : st.message,
     });
   },
 
   reset: () =>
     set({
-      resources: { madera: 30, piedra: 15, comida: 10 },
-      buildings: [{ id: nextId++, type: "centro", x: 0, z: 0 }],
+      resources: { ...emptyResources(), madera: 30, piedra: 15, comida: 10 },
+      buildings: [{ id: nextId++, type: "centro", x: 0, z: 0, paused: false, progress: 0, blocked: false }],
       settlers: spawnSettlers(6),
       nodes: initialNodes,
+      stats: { tablon: 0, pan: 0 },
+      colonos: 6,
       victory: false,
+      victory02: false,
       selected: null,
+      demolish: false,
       ghost: null,
-      message: "Partida reiniciada. Objetivo: 50 madera + 30 piedra.",
+      growTimer: 30,
+      message: "Partida reiniciada. Objetivo Fase 02: 20 tablones + 15 pan.",
     }),
 }));
+
+// Re-export para HUD
+export { CASA_COLONOS };

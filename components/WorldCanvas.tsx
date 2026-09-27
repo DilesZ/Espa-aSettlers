@@ -5,7 +5,7 @@ import { Grid, OrbitControls } from "@react-three/drei";
 import { useRef } from "react";
 import * as THREE from "three";
 import { BUILDINGS } from "@/lib/economy";
-import { useGame } from "@/store/game";
+import { useGame, type Building } from "@/store/game";
 
 function Sim() {
   const tick = useGame((s) => s.tick);
@@ -40,28 +40,113 @@ function Terrain() {
   );
 }
 
+/** Mezcla un color hex con #555555 para estado en pausa (gris apagado). */
+function mutedColor(hex: string): string {
+  const c = new THREE.Color(hex);
+  c.lerp(new THREE.Color("#555555"), 0.6);
+  return `#${c.getHexString()}`;
+}
+
+/** Aspas simples del molino: caja rotando vía useFrame en subcomponente. */
+function MillBlades({ paused, front }: { paused: boolean; front: number }) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (ref.current && !paused) ref.current.rotation.z += delta * 2.5;
+  });
+  return (
+    <group ref={ref} position={[0, 2.5, front]}>
+      <mesh castShadow>
+        <boxGeometry args={[0.18, 2.4, 0.18]} />
+        <meshStandardMaterial color="#f8f9fa" roughness={0.6} />
+      </mesh>
+      <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+        <boxGeometry args={[0.18, 2.4, 0.18]} />
+        <meshStandardMaterial color="#f8f9fa" roughness={0.6} />
+      </mesh>
+    </group>
+  );
+}
+
+function BuildingItem({
+  b,
+  demolish,
+  onSelect,
+}: {
+  b: Building;
+  demolish: boolean;
+  onSelect: (id: number) => void;
+}) {
+  const pulseRef = useRef<THREE.Group>(null);
+  // Se lee progress vía prop (closure del render), sin suscribir la store dentro del frame.
+  const progress = b.progress;
+  const paused = b.paused;
+
+  useFrame(({ clock }) => {
+    if (!pulseRef.current) return;
+    if (!paused && progress > 0) {
+      const s = 1 + 0.04 * Math.sin(clock.elapsedTime * 4);
+      pulseRef.current.scale.setScalar(s);
+    } else if (pulseRef.current.scale.x !== 1) {
+      pulseRef.current.scale.setScalar(1);
+    }
+  });
+
+  const base = BUILDINGS[b.type].color;
+  const color = paused ? mutedColor(base) : base;
+  const size = BUILDINGS[b.type].radio * 1.6;
+  const roofR = BUILDINGS[b.type].radio * 1.3;
+
+  const handleClick = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    onSelect(b.id);
+  };
+  const handleOver = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    if (demolish) document.body.style.cursor = "pointer";
+  };
+  const handleOut = () => {
+    document.body.style.cursor = "auto";
+  };
+
+  return (
+    <group position={[b.x, 0, b.z]}>
+      <group ref={pulseRef}>
+        <mesh
+          position={[0, 1, 0]}
+          castShadow
+          onClick={handleClick}
+          onPointerOver={handleOver}
+          onPointerOut={handleOut}
+        >
+          <boxGeometry args={[size, 2, size]} />
+          <meshStandardMaterial color={color} roughness={0.8} />
+        </mesh>
+        <mesh position={[0, 2.4, 0]}>
+          <coneGeometry args={[roofR, 1.4, 4]} />
+          <meshStandardMaterial color={paused ? "#555555" : "#7f4f24"} roughness={0.9} />
+        </mesh>
+        {b.type === "molino" && <MillBlades paused={paused} front={size / 2 + 0.15} />}
+      </group>
+    </group>
+  );
+}
+
 function Buildings() {
   const buildings = useGame((s) => s.buildings);
   const ghost = useGame((s) => s.ghost);
   const ghostError = useGame((s) => s.ghostError);
   const selected = useGame((s) => s.selected);
+  const demolish = useGame((s) => s.demolish);
+  const clickBuilding = useGame((s) => s.clickBuilding);
+  const ghostSize = selected ? BUILDINGS[selected].radio * 1.6 : 2.5;
   return (
     <group>
       {buildings.map((b) => (
-        <group key={b.id} position={[b.x, 0, b.z]}>
-          <mesh position={[0, 1, 0]} castShadow>
-            <boxGeometry args={[BUILDINGS[b.type].radio * 1.6, 2, BUILDINGS[b.type].radio * 1.6]} />
-            <meshStandardMaterial color={BUILDINGS[b.type].color} roughness={0.8} />
-          </mesh>
-          <mesh position={[0, 2.4, 0]}>
-            <coneGeometry args={[BUILDINGS[b.type].radio * 1.3, 1.4, 4]} />
-            <meshStandardMaterial color="#7f4f24" roughness={0.9} />
-          </mesh>
-        </group>
+        <BuildingItem key={b.id} b={b} demolish={demolish} onSelect={clickBuilding} />
       ))}
       {selected && ghost && (
         <mesh position={[ghost.x, 1, ghost.z]}>
-          <boxGeometry args={[2.5, 2, 2.5]} />
+          <boxGeometry args={[ghostSize, 2, ghostSize]} />
           <meshStandardMaterial color={ghostError ? "#e63946" : "#80ed99"} transparent opacity={0.6} />
         </mesh>
       )}
