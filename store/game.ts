@@ -111,6 +111,8 @@ type GameState = {
   fog: number[];
   fogVersion: number;
   fogTimer: number;
+  quality: "alto" | "medio" | "bajo";
+  setQuality: (q: "alto" | "medio" | "bajo") => void;
   select: (t: BuildingType | null) => void;
   toggleDemolish: () => void;
   setGhost: (x: number, z: number) => void;
@@ -285,6 +287,8 @@ export const useGame = create<GameState>((set, get) => ({
   fog: new Array(FOG_N * FOG_N).fill(0),
   fogVersion: 0,
   fogTimer: 0,
+  quality: "alto",
+  setQuality: (q) => set({ quality: q }),
 
   select: (t) => set({ selected: t, demolish: false, ghost: null, ghostError: null }),
   toggleDemolish: () => set((s) => ({ demolish: !s.demolish, selected: null, ghost: null })),
@@ -661,6 +665,7 @@ export const useGame = create<GameState>((set, get) => ({
       fog: new Array(FOG_N * FOG_N).fill(0),
       fogVersion: 0,
       fogTimer: 0,
+      quality: get().quality,
       message: "Partida reiniciada. Hay un rival al noreste: destruye su Centro.",
     }),
 }));
