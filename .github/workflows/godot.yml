@@ -1,0 +1,47 @@
+name: godot
+
+on:
+  push:
+    paths:
+      - "godot/**"
+      - ".github/workflows/godot.yml"
+  pull_request:
+    paths:
+      - "godot/**"
+      - ".github/workflows/godot.yml"
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.0
+          use-dotnet: false
+          include-templates: true
+
+      - name: Import project
+        run: godot --headless --import
+        working-directory: godot
+        continue-on-error: true
+
+      - name: Run GUT tests
+        run: godot --headless -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit
+        working-directory: godot
+
+      - name: Create build directory
+        run: mkdir -p ../build/windows
+        working-directory: godot
+
+      - name: Export Windows Desktop
+        run: godot --headless --export-release "Windows Desktop" ../build/windows/espanasettlers.exe
+        working-directory: godot
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: build/windows

@@ -28,6 +28,7 @@ var _buildings_label: Label
 var _palette_btns: Dictionary = {}
 var _demolish_btn: Button
 var _recruit_btn: Button
+var _quality_btns: Dictionary = {}
 var _prod_rows: VBoxContainer
 var _alerts_label: Label
 var _victory_banner: Label
@@ -190,6 +191,18 @@ func _build_palette() -> void:
 	_recruit_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_recruit_btn.pressed.connect(_on_recruit_pressed)
 	vb.add_child(_recruit_btn)
+	vb.add_child(_title("Calidad"))
+	var qh := HBoxContainer.new()
+	qh.add_theme_constant_override("separation", 4)
+	vb.add_child(qh)
+	for lvl in ["alto", "medio", "bajo"]:
+		var qb := _dark_button(lvl.capitalize())
+		qb.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		qb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		qb.pressed.connect(_on_quality_pressed.bind(lvl))
+		qh.add_child(qb)
+		_quality_btns[lvl] = qb
+	_refresh_quality()
 
 
 func _build_production() -> void:
@@ -327,6 +340,7 @@ func _refresh() -> void:
 			_demolish_btn.set_pressed_no_signal(d)
 	_refresh_production()
 	_refresh_alerts(cap)
+	_refresh_quality()
 	_victory_banner.visible = bool(GameState.victory)
 	_victory02_banner.visible = bool(GameState.victory02)
 	_victory03_banner.visible = bool(GameState.victory03)
@@ -474,6 +488,21 @@ func _on_recruit_pressed() -> void:
 	var err: String = Recruit.train()
 	if err != "":
 		GameState.message = err
+
+
+func _on_quality_pressed(level: String) -> void:
+	Quality.apply(level)
+	_refresh_quality()
+
+
+func _refresh_quality() -> void:
+	var cur := str(GameState.quality).to_lower()
+	for lvl in _quality_btns.keys():
+		var btn: Button = _quality_btns[lvl]
+		if str(lvl) == cur:
+			btn.modulate = Color.WHITE
+		else:
+			btn.modulate = Color(0.55, 0.55, 0.55)
 
 
 func _on_pause_pressed(id: String) -> void:
