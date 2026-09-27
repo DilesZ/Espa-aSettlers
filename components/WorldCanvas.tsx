@@ -8,6 +8,9 @@ import { BUILDINGS, BUILDING_HP } from "@/lib/economy";
 import { isCellVisible } from "@/lib/fog";
 import { useGame, type AiBuilding, type Building } from "@/store/game";
 import FogOverlay from "@/components/FogOverlay";
+import DayNight from "@/components/DayNight";
+import Effects from "@/components/Effects";
+import Atmosphere from "@/components/Atmosphere";
 
 function Sim() {
   const tick = useGame((s) => s.tick);
@@ -295,18 +298,20 @@ function Nodes() {
 }
 
 export default function WorldCanvas() {
+  const quality = useGame((s) => s.quality);
   const ref = useRef<THREE.Group>(null);
+  const dpr: [number, number] =
+    quality === "alto" ? [1, 1.75] : quality === "medio" ? [1, 1.25] : [1, 1];
   return (
     <Canvas
-      shadows
-      dpr={[1, 1.75]}
+      key={quality}
+      shadows={quality !== "bajo"}
+      dpr={dpr}
       camera={{ position: [20, 16, 20], fov: 50 }}
-      gl={{ antialias: true, powerPreference: "high-performance" }}
+      gl={{ antialias: quality !== "bajo", powerPreference: "high-performance" }}
       style={{ width: "100%", height: "100%" }}
     >
-      <color attach="background" args={["#0b1526"]} />
-      <hemisphereLight intensity={0.7} />
-      <directionalLight position={[12, 20, 8]} intensity={1.3} castShadow shadow-mapSize={[2048, 2048]} />
+      <DayNight />
       <Sim />
       <group ref={ref}>
         <Terrain />
@@ -315,8 +320,10 @@ export default function WorldCanvas() {
         <Settlers />
         <Recruits />
         <Enemy />
+        <Atmosphere />
         <FogOverlay />
       </group>
+      <Effects />
       <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.15} />
     </Canvas>
   );

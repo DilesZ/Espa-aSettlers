@@ -36,6 +36,8 @@ export default function HUD() {
   const victory02 = useGame((s) => s.victory02);
   const victory03 = useGame((s) => (s as unknown as { victory03?: boolean } | undefined)?.victory03);
   const defeat = useGame((s) => (s as unknown as { defeat?: boolean } | undefined)?.defeat);
+  const quality = useGame((s) => s.quality);
+  const setQuality = useGame((s) => s.setQuality);
   const [muted, setMutedState] = useState<boolean>(() => isMuted());
 
   const almacenes = buildings.filter((b) => b.type === "almacen").length;
@@ -92,6 +94,34 @@ export default function HUD() {
         >
           Entrenar recluta (15🌾)
         </button>
+      </div>
+
+      {/* Fila de calidad gráfica */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-white/10 bg-black/60 px-3 py-2">
+        <span className="font-semibold text-zinc-300">Calidad:</span>
+        {(
+          [
+            { id: "alto", label: "Alto" },
+            { id: "medio", label: "Medio" },
+            { id: "bajo", label: "Bajo" },
+          ] as const
+        ).map((q) => (
+          <button
+            key={q.id}
+            onClick={() => {
+              ensureAudio();
+              setQuality(q.id);
+            }}
+            className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${
+              quality === q.id
+                ? "border-yellow-300 bg-yellow-900/50 text-yellow-100"
+                : "border-white/15 bg-white/5 hover:bg-white/10"
+            }`}
+            title={`Calidad ${q.label}`}
+          >
+            {q.label}
+          </button>
+        ))}
       </div>
 
       {/* 6) Banners de victoria */}
