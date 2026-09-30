@@ -272,7 +272,10 @@ func _build_production() -> void:
 	prod.anchor_right = 1.0
 	prod.anchor_bottom = 1.0
 	prod.offset_left = -320.0
-	prod.offset_top = 50.0
+	# Minimap ocupa 44..184 arriba-derecha (ver main.tscn): el panel
+	# de Producción con offset_top=50 lo tapaba (se añade después en
+	# el árbol y dibuja encima). Se baja a 190 para dejarlo debajo.
+	prod.offset_top = 190.0
 	prod.offset_right = -8.0
 	prod.offset_bottom = -8.0
 	add_child(prod)

@@ -14,6 +14,9 @@ const BG2 := Color(0.10, 0.29, 0.19)
 const RELIEF_CELLS := 16
 const RIVER := Color(0.15, 0.45, 0.85)
 const SETTLER := Color(0.95, 0.85, 0.25)
+const AI_BUILDING := Color(0.95, 0.25, 0.25)
+const RECRUIT := Color(0.30, 0.55, 1.0)
+const BORDER := Color(0.79, 0.64, 0.15)
 const FALLBACK := Color(0.80, 0.80, 0.80)
 const FOG_HIDDEN := Color(0, 0, 0, 0.85)
 const FOG_EXPLORED := Color(0, 0, 0, 0.4)
@@ -68,7 +71,23 @@ func _draw() -> void:
 			draw_rect(Rect2(p - Vector2(2.5, 2.5), Vector2(5, 5)), col, true)
 		for s in (gs.get("settlers") as Array):
 			draw_circle(_settler_pos(s), 2.0, SETTLER)
-	draw_rect(r, Color(0, 0, 0, 0.6), false, 1.0)
+		# Edificios IA en rojo.
+		if gs.get("ai_buildings") is Array:
+			for b in (gs.get("ai_buildings") as Array):
+				if b is Dictionary:
+					var abd: Dictionary = b
+					var pa := _to_map(float(abd.get("x", 0.0)), float(abd.get("z", 0.0)))
+					draw_rect(Rect2(pa - Vector2(2.5, 2.5), Vector2(5, 5)), AI_BUILDING, true)
+				elif b is Node3D:
+					var nb: Node3D = b
+					var pb := _to_map(nb.position.x, nb.position.z)
+					draw_rect(Rect2(pb - Vector2(2.5, 2.5), Vector2(5, 5)), AI_BUILDING, true)
+		# Reclutas propios en azul.
+		if gs.get("recruits") is Array:
+			for u in (gs.get("recruits") as Array):
+				draw_circle(_settler_pos(u), 2.0, RECRUIT)
+	# Fondo+borde siempre visibles aunque no haya datos/GameState.
+	draw_rect(r, BORDER, false, 2.0)
 
 
 func _draw_relief(r: Rect2) -> void:

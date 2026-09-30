@@ -56,25 +56,40 @@ func _build_tree_meshes() -> void:
 	var trees: Array = GameState.nodes.filter(func(node: Dictionary) -> bool: return node.get("type") == "tree")
 	if trees.is_empty():
 		return
-	var tree_path := "res://assets/cc0/medieval/decoration/nature/tree_single_A.gltf"
-	var tree_mesh: Mesh = _extract_mesh(tree_path)
-	if tree_mesh == null:
+	var mesh_a: Mesh = _extract_mesh("res://assets/cc0/medieval/decoration/nature/tree_single_A.gltf")
+	var mesh_b: Mesh = _extract_mesh("res://assets/cc0/medieval/decoration/nature/tree_single_B.gltf")
+	if mesh_a == null and mesh_b == null:
 		_build_tree_meshes_placeholder()
 		return
-	var tree_mmi := MultiMeshInstance3D.new()
-	tree_mmi.name = "Trees"
-	tree_mmi.multimesh = MultiMesh.new()
-	tree_mmi.multimesh.transform_format = MultiMesh.TRANSFORM_3D
-	tree_mmi.multimesh.mesh = tree_mesh
-	tree_mmi.multimesh.instance_count = trees.size()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = RANDOM_SEED
+	# Reparte instancias entre A y B (50/50) en 2 MultiMesh, escala 1.35.
+	var list_a: Array = []
+	var list_b: Array = []
 	for i in range(trees.size()):
-		var pos := Vector3(float(trees[i]["x"]), 0.0, float(trees[i]["z"]))
-		var angle := rng.randf_range(0.0, TAU)
-		var basis := Basis(Vector3.UP, angle)
-		tree_mmi.multimesh.set_instance_transform(i, Transform3D(basis, pos))
-	add_child(tree_mmi)
+		if i % 2 == 0 and mesh_a != null:
+			list_a.append(i)
+		elif mesh_b != null:
+			list_b.append(i)
+		elif mesh_a != null:
+			list_a.append(i)
+	for pair in [[mesh_a, list_a, "TreesA"], [mesh_b, list_b, "TreesB"]]:
+		if (pair[1] as Array).is_empty() or pair[0] == null:
+			continue
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = str(pair[2])
+		mmi.multimesh = MultiMesh.new()
+		mmi.multimesh.transform_format = MultiMesh.TRANSFORM_3D
+		mmi.multimesh.mesh = pair[0]
+		mmi.multimesh.instance_count = (pair[1] as Array).size()
+		var k := 0
+		for i in (pair[1] as Array):
+			var pos := Vector3(float(trees[i]["x"]), 0.0, float(trees[i]["z"]))
+			var angle := rng.randf_range(0.0, TAU)
+			var basis := Basis(Vector3.UP, angle).scaled(Vector3.ONE * 1.35)
+			mmi.multimesh.set_instance_transform(k, Transform3D(basis, pos))
+			k += 1
+		add_child(mmi)
 
 
 ## Extrae la primera malla de un .gltf importado (PackedScene). Null si falla.
