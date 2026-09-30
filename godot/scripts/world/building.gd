@@ -30,39 +30,14 @@ func setup(b: Dictionary) -> void:
 	add_to_group("building_nodes")
 	var def: Dictionary = Economy.BUILDINGS[tipo]
 	var radio: float = float(def.get("radio", 2.0))
-	var base_col := Color(str(def.get("color", "#ffffff")))
 	var w: float = radio * 1.6
 	position = Vector3(float(data.get("x", 0.0)), 0.0, float(data.get("z", 0.0)))
 	if str(data.get("id", "")) != "":
 		name = "Building_%s" % str(data.get("id"))
 
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = base_col
-	mat.roughness = 0.8
-
-	var box := MeshInstance3D.new()
-	var box_mesh := BoxMesh.new()
-	box_mesh.size = Vector3(w, 2.0, w)
-	box.mesh = box_mesh
-	box.position = Vector3(0.0, 1.0, 0.0)
-	box.set_surface_override_material(0, mat)
-	add_child(box)
-
-	var roof_mat := StandardMaterial3D.new()
-	roof_mat.albedo_color = base_col.darkened(0.25)
-	roof_mat.roughness = 0.7
-
-	var roof := MeshInstance3D.new()
-	var cone := CylinderMesh.new()
-	cone.top_radius = 0.0
-	cone.bottom_radius = w * 0.75
-	cone.height = 1.5
-	cone.radial_segments = 4
-	roof.mesh = cone
-	roof.position = Vector3(0.0, 2.75, 0.0)
-	roof.rotation.y = deg_to_rad(45.0)
-	roof.set_surface_override_material(0, roof_mat)
-	add_child(roof)
+	var visual := BuildingFactory.mesh_for(tipo, "blue", str(data.get("id", "")))
+	visual.name = "Visual"
+	add_child(visual)
 
 	var body := StaticBody3D.new()
 	body.position = Vector3(0.0, 1.75, 0.0)
