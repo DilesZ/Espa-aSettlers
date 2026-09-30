@@ -52,6 +52,7 @@ func _physics_process(delta: float) -> void:
 		_raid_t -= RAID_INTERVAL
 		_do_raid()
 	_tick_fallback_raiders(delta)
+	Siege.tick(delta, self)
 
 
 ## Construye el siguiente edificio de la cola junto a AI_BASE: añade el dict a
