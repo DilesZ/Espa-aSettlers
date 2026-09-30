@@ -13,6 +13,7 @@ const RETARGET := 0.5 ## Segundos entre reelecciones de objetivo.
 const RAIDER_RANGE := 2.0 ## Distancia de ataque contra raiders.
 const BUILDING_RANGE := 3.0 ## Distancia de ataque contra edificios IA.
 const TRAIN_POS := Vector3(0.0, 0.0, 4.0) ## Punto de aparición al entrenar.
+const MODEL_PATH := "res://assets/cc0/characters/Knight.glb"
 
 static var _next_id := 0
 
@@ -94,6 +95,32 @@ func _build() -> void:
 	col.position = Vector3(0.0, 0.75, 0.0)
 	add_child(col)
 
+	## Instancia el .glb de MODEL_PATH como hijo "Visual" (conserva colisión,
+	## agente, FSM, hp, lanza y grupos: solo cambia lo visible). Si no carga
+	## (ruta ausente o import roto), fallback a la cápsula azul de siempre.
+	_build_visual()
+
+	nav = NavigationAgent3D.new()
+	nav.name = "Nav"
+	nav.max_speed = SPEED
+	nav.path_desired_distance = 0.4
+	nav.target_desired_distance = 0.5
+	add_child(nav)
+
+
+## Instancia el .glb de MODEL_PATH como hijo "Visual" (conserva colisión,
+## agente, FSM, hp, lanza y grupos: solo cambia lo visible). Si no carga
+## (ruta ausente o import roto), fallback a la cápsula azul de siempre.
+func _build_visual() -> void:
+	var visual := Node3D.new()
+	visual.name = "Visual"
+	add_child(visual)
+	var packed: PackedScene = null
+	if ResourceLoader.exists(MODEL_PATH):
+		packed = load(MODEL_PATH) as PackedScene
+	if packed != null and packed.can_instantiate():
+		visual.add_child(packed.instantiate())
+		return
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color("#4cc9f0")
 	mat.roughness = 0.8
@@ -105,7 +132,7 @@ func _build() -> void:
 	body.mesh = capsule
 	body.material_override = mat
 	body.position = Vector3(0.0, 0.85, 0.0)
-	add_child(body)
+	visual.add_child(body)
 
 	var lance_mat := StandardMaterial3D.new()
 	lance_mat.albedo_color = Color(0.6, 0.6, 0.65)
@@ -117,14 +144,7 @@ func _build() -> void:
 	lance.mesh = lance_mesh
 	lance.material_override = lance_mat
 	lance.position = Vector3(0.35, 1.1, 0.25)
-	add_child(lance)
-
-	nav = NavigationAgent3D.new()
-	nav.name = "Nav"
-	nav.max_speed = SPEED
-	nav.path_desired_distance = 0.4
-	nav.target_desired_distance = 0.5
-	add_child(nav)
+	visual.add_child(lance)
 
 
 func _physics_process(delta: float) -> void:

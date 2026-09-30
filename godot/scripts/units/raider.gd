@@ -1,15 +1,16 @@
 class_name Raider
 extends CharacterBody3D
 ## Asaltante de la IA: persigue reclutas o asedia edificios propios.
-## Como Settler pero rojo: colisión + cápsula #e63946 + NavigationAgent3D,
+## Barbarian.glb (KayKit) rojo: CharacterBody3D + NavigationAgent3D,
 ## construido por código (sin escena). Reelige objetivo cada 0.5s: recluta vivo
 ## más cercano (grupo "recruits") o, si no hay, edificio propio más cercano
 ## (GameState.buildings). Ataca a < 2.0 m con Economy.RAIDER_DPS.
 ## El manager lo añade al árbol (ver spawn()).
 
-const SPEED := 5.0 ## Marcha (igual que max_speed del agente).
-const RETARGET := 0.5 ## Segundos entre reelecciones de objetivo.
-const ATTACK_RANGE := 2.0 ## Distancia de ataque cuerpo a cuerpo.
+const SPEED := 5.0
+const RETARGET := 0.5
+const ATTACK_RANGE := 2.0
+const MODEL_PATH := "res://assets/cc0/characters/Barbarian.glb"
 
 static var _next_id := 0
 
@@ -64,18 +65,10 @@ func _build() -> void:
 	col.position = Vector3(0.0, 0.75, 0.0)
 	add_child(col)
 
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color("#e63946")
-	mat.roughness = 0.8
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.35
-	capsule.height = 1.5
-	var body := MeshInstance3D.new()
-	body.name = "Body"
-	body.mesh = capsule
-	body.material_override = mat
-	body.position = Vector3(0.0, 0.85, 0.0)
-	add_child(body)
+	## Instancia el .glb de MODEL_PATH como hijo "Visual" (conserva colisión,
+	## agente, FSM, hp y grupos: solo cambia lo visible). Si no carga
+	## (ruta ausente o import roto), fallback a la cápsula roja de siempre.
+	_build_visual()
 
 	nav = NavigationAgent3D.new()
 	nav.name = "Nav"
@@ -83,6 +76,33 @@ func _build() -> void:
 	nav.path_desired_distance = 0.4
 	nav.target_desired_distance = 0.5
 	add_child(nav)
+
+
+	## Instancia el .glb de MODEL_PATH como hijo "Visual" (conserva colisión,
+	## agente, FSM, hp y grupos: solo cambia lo visible). Si no carga
+	## (ruta ausente o import roto), fallback a la cápsula roja de siempre.
+	func _build_visual() -> void:
+		var visual := Node3D.new()
+		visual.name = "Visual"
+		add_child(visual)
+		var packed: PackedScene = null
+		if ResourceLoader.exists(MODEL_PATH):
+			packed = load(MODEL_PATH) as PackedScene
+		if packed != null and packed.can_instantiate():
+			visual.add_child(packed.instantiate())
+			return
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color("#e63946")
+		mat.roughness = 0.8
+		var capsule := CapsuleMesh.new()
+		capsule.radius = 0.35
+		capsule.height = 1.5
+		var body := MeshInstance3D.new()
+		body.name = "Body"
+		body.mesh = capsule
+		body.material_override = mat
+		body.position = Vector3(0.0, 0.85, 0.0)
+		visual.add_child(body)
 
 
 func _physics_process(delta: float) -> void:

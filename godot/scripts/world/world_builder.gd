@@ -51,21 +51,69 @@ func _generate_resource_nodes() -> void:
 
 
 # --- 2a. DIBUJO: troncos (cilindro) y copas (cono) con 2 MultiMeshInstance3D ---
+# --- 2a. DIBUJO: arboles con arte KayKit (tree_single_A.gltf) usando MultiMesh ---
 func _build_tree_meshes() -> void:
-	# Recoge solo los árboles del estado (así el dibujo nunca diverge de los datos).
 	var trees: Array = GameState.nodes.filter(func(node: Dictionary) -> bool: return node.get("type") == "tree")
 	if trees.is_empty():
 		return
-	# Material del tronco: marrón mate.
+	var tree_path := "res://assets/cc0/medieval/decoration/nature/tree_single_A.gltf"
+	var tree_mesh: Mesh = _extract_mesh(tree_path)
+	if tree_mesh == null:
+		_build_tree_meshes_placeholder()
+		return
+	var tree_mmi := MultiMeshInstance3D.new()
+	tree_mmi.name = "Trees"
+	tree_mmi.multimesh = MultiMesh.new()
+	tree_mmi.multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	tree_mmi.multimesh.mesh = tree_mesh
+	tree_mmi.multimesh.instance_count = trees.size()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = RANDOM_SEED
+	for i in range(trees.size()):
+		var pos := Vector3(float(trees[i]["x"]), 0.0, float(trees[i]["z"]))
+		var angle := rng.randf_range(0.0, TAU)
+		var basis := Basis(Vector3.UP, angle)
+		tree_mmi.multimesh.set_instance_transform(i, Transform3D(basis, pos))
+	add_child(tree_mmi)
+
+
+## Extrae la primera malla de un .gltf importado (PackedScene). Null si falla.
+func _extract_mesh(path: String) -> Mesh:
+	if not ResourceLoader.exists(path):
+		push_warning("WorldBuilder: no existe " + path)
+		return null
+	var packed: PackedScene = load(path) as PackedScene
+	if packed == null or not packed.can_instantiate():
+		push_warning("WorldBuilder: no se pudo cargar " + path)
+		return null
+	var scene := packed.instantiate()
+	if scene == null:
+		return null
+	var found := scene.find_children("*", "MeshInstance3D", true, false)
+	var mi: MeshInstance3D = null
+	if not found.is_empty():
+		mi = found[0] as MeshInstance3D
+	var mesh: Mesh = null
+	if mi != null and mi.mesh != null:
+		mesh = mi.mesh
+	else:
+		push_warning("WorldBuilder: sin malla en " + path)
+	scene.queue_free()
+	return mesh
+
+
+## Placeholder anterior (tronco + copa) si el arte no carga.
+func _build_tree_meshes_placeholder() -> void:
+	var trees: Array = GameState.nodes.filter(func(node: Dictionary) -> bool: return node.get("type") == "tree")
+	if trees.is_empty():
+		return
 	var trunk_mat := StandardMaterial3D.new()
 	trunk_mat.albedo_color = Color(0.35, 0.22, 0.12)
 	trunk_mat.roughness = 1.0
-	# Malla del tronco: cilindro de 2 m (centrado; base en y=0 al colocarlo en y=1).
 	var trunk_mesh := CylinderMesh.new()
 	trunk_mesh.top_radius = 0.25
 	trunk_mesh.bottom_radius = 0.35
 	trunk_mesh.height = TRUNK_HEIGHT
-	# Un MultiMeshInstance3D por malla: 1 draw call para todos los troncos.
 	var trunk_mmi := MultiMeshInstance3D.new()
 	trunk_mmi.name = "TreesTrunk"
 	trunk_mmi.material_override = trunk_mat
@@ -73,11 +121,9 @@ func _build_tree_meshes() -> void:
 	trunk_mm.transform_format = MultiMesh.TRANSFORM_3D
 	trunk_mm.mesh = trunk_mesh
 	trunk_mm.instance_count = trees.size()
-	# Material de la copa: verde mate.
 	var canopy_mat := StandardMaterial3D.new()
 	canopy_mat.albedo_color = Color(0.13, 0.35, 0.14)
 	canopy_mat.roughness = 1.0
-	# Malla de la copa: cono (cilindro con punta ~0) de 3.2 m de alto.
 	var canopy_mesh := CylinderMesh.new()
 	canopy_mesh.top_radius = 0.05
 	canopy_mesh.bottom_radius = 1.7
@@ -89,7 +135,6 @@ func _build_tree_meshes() -> void:
 	canopy_mm.transform_format = MultiMesh.TRANSFORM_3D
 	canopy_mm.mesh = canopy_mesh
 	canopy_mm.instance_count = trees.size()
-	# Una instancia por árbol en su posición (x, z) de GameState.nodes.
 	for i in range(trees.size()):
 		var pos := Vector3(float(trees[i]["x"]), 0.0, float(trees[i]["z"]))
 		trunk_mm.set_instance_transform(i, Transform3D(Basis(), pos + Vector3(0.0, TRUNK_HEIGHT * 0.5, 0.0)))
@@ -99,17 +144,46 @@ func _build_tree_meshes() -> void:
 	add_child(trunk_mmi)
 	add_child(canopy_mmi)
 
-
 # --- 2b. DIBUJO: rocas (BoxMesh con escala aleatoria, placeholder) con 1 MultiMeshInstance3D ---
+# --- 2b. DIBUJO: rocas KayKit (rock_single_*) con 1 MultiMeshInstance3D ---
 func _build_rock_meshes() -> void:
 	var rocks: Array = GameState.nodes.filter(func(node: Dictionary) -> bool: return node.get("type") == "rock")
 	if rocks.is_empty():
 		return
-	# Material de roca: gris mate.
+	var variants: Array = []
+	for suffix in ["rock_single_A.gltf", "rock_single_B.gltf", "rock_single_C.gltf", "rock_single_D.gltf", "rock_single_E.gltf"]:
+		var m := _extract_mesh("res://assets/cc0/medieval/decoration/nature/" + suffix)
+		if m != null:
+			variants.append(m)
+	if variants.is_empty():
+		push_warning("WorldBuilder: sin arte de rocas, usando placeholder")
+		_build_rock_meshes_placeholder()
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = RANDOM_SEED
+	for i in range(rocks.size()):
+		var mesh: Mesh = variants[i % variants.size()]
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "Rocks_%d" % i
+		mmi.multimesh = MultiMesh.new()
+		mmi.multimesh.transform_format = MultiMesh.TRANSFORM_3D
+		mmi.multimesh.mesh = mesh
+		mmi.multimesh.instance_count = 1
+		var sc := Vector3(rng.randf_range(0.7, 1.8), rng.randf_range(0.5, 1.2), rng.randf_range(0.7, 1.8))
+		var basis := Basis(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(sc)
+		var pos := Vector3(float(rocks[i]["x"]), sc.y * 0.5 - 0.1, float(rocks[i]["z"]))
+		mmi.multimesh.set_instance_transform(0, Transform3D(basis, pos))
+		add_child(mmi)
+
+
+## Placeholder anterior (cajas con escala aleatoria).
+func _build_rock_meshes_placeholder() -> void:
+	var rocks: Array = GameState.nodes.filter(func(node: Dictionary) -> bool: return node.get("type") == "rock")
+	if rocks.is_empty():
+		return
 	var rock_mat := StandardMaterial3D.new()
 	rock_mat.albedo_color = Color(0.45, 0.45, 0.48)
 	rock_mat.roughness = 1.0
-	# Malla base unitaria; la variedad viene de la escala aleatoria por instancia.
 	var rock_mesh := BoxMesh.new()
 	rock_mesh.size = Vector3(1.6, 1.0, 1.2)
 	var rock_mmi := MultiMeshInstance3D.new()
@@ -119,19 +193,16 @@ func _build_rock_meshes() -> void:
 	rock_mm.transform_format = MultiMesh.TRANSFORM_3D
 	rock_mm.mesh = rock_mesh
 	rock_mm.instance_count = rocks.size()
-	# Generador con semilla fija para que la decoración no cambie entre partidas.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = RANDOM_SEED
 	for i in range(rocks.size()):
 		var scale := Vector3(rng.randf_range(0.7, 1.8), rng.randf_range(0.5, 1.2), rng.randf_range(0.7, 1.8))
-		var angle := rng.randf_range(0.0, TAU) # Giro aleatorio sobre Y.
+		var angle := rng.randf_range(0.0, TAU)
 		var basis := Basis(Vector3.UP, angle).scaled(scale)
-		# y = media altura escalada (apoyada en el suelo) menos un poco de hundido.
 		var pos := Vector3(float(rocks[i]["x"]), scale.y * 0.5 - 0.1, float(rocks[i]["z"]))
 		rock_mm.set_instance_transform(i, Transform3D(basis, pos))
 	rock_mmi.multimesh = rock_mm
 	add_child(rock_mmi)
-
 
 # --- 3. NAVEGACIÓN: región 64x64 horneada en runtime + río como obstáculo ---
 func _build_navigation() -> void:

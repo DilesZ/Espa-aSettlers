@@ -6,7 +6,7 @@ extends Node3D
 var selected: String = ""
 var demolish := false
 
-var _ghost: MeshInstance3D
+var _ghost: Node3D
 var _ghost_mat: StandardMaterial3D
 var _ground := Vector3.ZERO
 var _ground_valid := false
@@ -21,11 +21,8 @@ func _ready() -> void:
 	_ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_ghost_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_ghost_mat.albedo_color = Color(GHOST_OK, 0.45)
-	_ghost = MeshInstance3D.new()
-	var gm := BoxMesh.new()
-	gm.size = Vector3(3.2, 2.0, 3.2)
-	_ghost.mesh = gm
-	_ghost.set_surface_override_material(0, _ghost_mat)
+	_ghost = Node3D.new()
+	_ghost.name = "Ghost"
 	_ghost.visible = false
 	add_child(_ghost)
 
@@ -36,7 +33,7 @@ func select_building(t: String) -> void:
 		return
 	selected = t
 	demolish = false
-	_refresh_ghost_size()
+	_refresh_ghost_mesh()
 	if _ghost != null:
 		_ghost.visible = selected != ""
 
@@ -61,7 +58,7 @@ func _process(_delta: float) -> void:
 		return
 	if _pick_ground():
 		_ghost.visible = true
-		_ghost.position = Vector3(_ground.x, 1.0, _ground.z)
+		_ghost.position = Vector3(_ground.x, 0.0, _ground.z)
 		var err: String = Economy.placement_error(_ground.x, _ground.z, selected, GameState.buildings)
 		if err == "":
 			_ghost_mat.albedo_color = Color(GHOST_OK, 0.45)
@@ -174,15 +171,17 @@ func _pick_ground() -> bool:
 	return true
 
 
-func _refresh_ghost_size() -> void:
-	if _ghost == null:
+func _refresh_ghost_mesh() -> void:
+	if _ghost == null or _ghost_mat == null:
 		return
-	var w := 3.2
-	if selected != "" and Economy.BUILDINGS.has(selected):
-		w = float((Economy.BUILDINGS[selected] as Dictionary).get("radio", 2.0)) * 1.6
-	var gm := _ghost.mesh as BoxMesh
-	if gm != null:
-		gm.size = Vector3(w, 2.0, w)
+	for c in _ghost.get_children():
+		_ghost.remove_child(c)
+		c.queue_free()
+	if selected == "" or not Economy.BUILDINGS.has(selected):
+		return
+	var preview := BuildingFactory.ghost_for(selected, "blue", _ghost_mat, "ghost")
+	preview.name = "GhostVisual"
+	_ghost.add_child(preview)
 
 
 func _find_index(id: String) -> int:
