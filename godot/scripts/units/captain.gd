@@ -54,11 +54,14 @@ static func train() -> String:
 	for b in GameState.buildings:
 		if b is Dictionary and str((b as Dictionary).get("type", "")) == "casa":
 			casas += 1
-	var cap: int = mini(Economy.housing_cap(casas), Economy.MAX_SETTLERS)
-	if GameState.settlers.size() + GameState.recruits.size() >= cap:
-		return "Sin vivienda libre: construye una casa"
-	if float(GameState.resources.get("comida", 0.0)) < float(TRAIN_COST):
-		return "Comida insuficiente: necesitas 30"
+	# El centro aporta +2 alojamiento para no bloquear el inicio.
+	var cap: int = mini(Economy.housing_cap(casas) + 2, Economy.MAX_SETTLERS)
+	var ocup: int = GameState.settlers.size() + GameState.recruits.size()
+	if ocup >= cap:
+		return "Sin vivienda libre (%d/%d): construye una casa (+%d)" % [ocup, cap, Economy.CASA_COLONOS]
+	var have: float = float(GameState.resources.get("comida", 0.0))
+	if have < float(TRAIN_COST):
+		return "Comida insuficiente: necesitas %d (tienes %d)" % [int(TRAIN_COST), int(have)]
 	GameState.resources["comida"] = float(GameState.resources.get("comida", 0.0)) - float(TRAIN_COST)
 	GameState.resources_changed.emit()
 	var r := Captain.spawn(TRAIN_POS)

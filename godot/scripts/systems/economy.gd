@@ -32,12 +32,12 @@ const BUILDINGS: Dictionary = {
 	"cantera": {"nombre": "Cantera", "coste": {"madera": 10, "piedra": 0}, "color": "#adb5bd", "radio": 2.0},
 	"casa": {"nombre": "Casa (+4 colonos)", "coste": {"madera": 15, "piedra": 5}, "color": "#f4a261", "radio": 2.0},
 	"almacen": {"nombre": "Almacén (+100 cap)", "coste": {"madera": 20, "piedra": 10}, "color": "#2a9d8f", "radio": 2.5},
-	"aserradero": {"nombre": "Aserradero", "coste": {"madera": 25, "piedra": 10}, "color": "#b5835a", "radio": 2.5},
-	"granja": {"nombre": "Granja", "coste": {"madera": 20, "piedra": 5}, "color": "#d4a373", "radio": 2.5},
-	"molino": {"nombre": "Molino", "coste": {"madera": 30, "piedra": 15}, "color": "#e5e5e5", "radio": 2.5},
-	"panaderia": {"nombre": "Panadería", "coste": {"madera": 30, "piedra": 20}, "color": "#c08552", "radio": 2.5},
+	"aserradero": {"nombre": "Aserradero", "coste": {"madera": 20, "piedra": 5}, "color": "#b5835a", "radio": 2.5}, # SOAK: 25+10→20+5, abarata arranque (casa/almacen intactos por test_economy)
+	"granja": {"nombre": "Granja", "coste": {"madera": 15, "piedra": 5}, "color": "#d4a373", "radio": 2.5}, # SOAK: 20+5→15+5; cadena total 105M+50P→75M+35P
+	"molino": {"nombre": "Molino", "coste": {"madera": 20, "piedra": 10}, "color": "#e5e5e5", "radio": 2.5}, # SOAK: 30+15→20+10
+	"panaderia": {"nombre": "Panadería", "coste": {"madera": 20, "piedra": 15}, "color": "#c08552", "radio": 2.5}, # SOAK: 30+20→20+15
 	"pescador": {"nombre": "Pescador (río)", "coste": {"madera": 15, "piedra": 0}, "color": "#48cae4", "radio": 2.0},
-	"torre": {"nombre": "Torre defensiva", "coste": {"madera": 20, "piedra": 15}, "color": "#6c757d", "radio": 2.0},
+	"torre": {"nombre": "Torre defensiva", "coste": {"madera": 15, "piedra": 10}, "color": "#6c757d", "radio": 2.0}, # SOAK: 20+15→15+10, defensa asequible sin tocar DPS (test_combat intacto)
 	"muralla": {"nombre": "Muralla", "coste": {"madera": 5, "piedra": 0}, "color": "#9aa0a6", "radio": 1.5},
 	"puerta": {"nombre": "Puerta", "coste": {"madera": 8, "piedra": 2}, "color": "#7d8590", "radio": 1.5},
 	"mercado": {"nombre": "Mercado", "coste": {"madera": 25, "piedra": 15}, "color": "#e8c547", "radio": 2.5},
@@ -62,10 +62,10 @@ const BUILDING_HP: Dictionary = {
 
 const RECIPES: Dictionary = {
 	"aserradero": {"building": "aserradero", "inputs": {"madera": 1}, "outputs": {"tablon": 2}, "time": 15.0, "workers": 1},
-	"granja": {"building": "granja", "inputs": {}, "outputs": {"trigo": 1}, "time": 20.0, "workers": 1},
-	"molino": {"building": "molino", "inputs": {"trigo": 1}, "outputs": {"harina": 1}, "time": 12.0, "workers": 1},
+	"granja": {"building": "granja", "inputs": {}, "outputs": {"trigo": 2}, "time": 20.0, "workers": 1}, # SOAK: trigo 1→2, rompe cuello 20s (batches intactos: test_economy verde)
+	"molino": {"building": "molino", "inputs": {"trigo": 1}, "outputs": {"harina": 2}, "time": 12.0, "workers": 1}, # SOAK: harina 1→2, acompaña a granja (idem)
 	"panaderia": {"building": "panaderia", "inputs": {"harina": 1}, "outputs": {"pan": 1, "comida": 5}, "time": 15.0, "workers": 1},
-	"pescador": {"building": "pescador", "inputs": {}, "outputs": {"comida": 3}, "time": 18.0, "workers": 1},
+	"pescador": {"building": "pescador", "inputs": {}, "outputs": {"comida": 4}, "time": 15.0, "workers": 1}, # SOAK: 3/18s→4/15s, sostiene crecimiento inicial (sin test previo)
 }
 
 

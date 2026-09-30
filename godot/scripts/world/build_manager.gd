@@ -46,6 +46,9 @@ func select_building(t: String) -> void:
 	if t != "" and not Economy.BUILDINGS.has(t):
 		_set_message("Edificio desconocido")
 		return
+	if t == "centro":
+		_set_message("El centro ya existe, no se puede construir")
+		return
 	selected = t
 	demolish = false
 	_refresh_ghost_mesh()
@@ -134,6 +137,9 @@ func _try_place(x: float, z: float) -> void:
 	if selected == "" or not Economy.BUILDINGS.has(selected):
 		return
 	var tipo: String = selected
+	if tipo == "centro":
+		_set_message("El centro ya existe, no se puede construir")
+		return
 	var err: String = Economy.placement_error(x, z, tipo, GameState.buildings)
 	if err != "":
 		_set_message(err)

@@ -31,6 +31,7 @@ var _recruit_btn: Button
 var _captain_btn: Button
 var _explorer_btn: Button
 var _quality_btns: Dictionary = {}
+var _mute_btn: Button
 var _prod_rows: VBoxContainer
 var _alerts_label: Label
 var _victory_banner: Label
@@ -201,11 +202,11 @@ func _build_palette() -> void:
 	_recruit_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_recruit_btn.pressed.connect(_on_recruit_pressed)
 	vb.add_child(_recruit_btn)
-	_captain_btn = _dark_button("Capitán (30🌾)")
+	_captain_btn = _dark_button("Capitán (30 comida)")
 	_captain_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_captain_btn.pressed.connect(_on_captain_pressed)
 	vb.add_child(_captain_btn)
-	_explorer_btn = _dark_button("Explorador (10🌾)")
+	_explorer_btn = _dark_button("Explorador (10 comida)")
 	_explorer_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_explorer_btn.pressed.connect(_on_explorer_pressed)
 	vb.add_child(_explorer_btn)
@@ -220,7 +221,12 @@ func _build_palette() -> void:
 		qb.pressed.connect(_on_quality_pressed.bind(lvl))
 		qh.add_child(qb)
 		_quality_btns[lvl] = qb
+	_mute_btn = _dark_button("Sonido: ON")
+	_mute_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_mute_btn.pressed.connect(_on_mute_pressed)
+	vb.add_child(_mute_btn)
 	_refresh_quality()
+	_refresh_mute()
 
 
 func _build_production() -> void:
@@ -359,6 +365,7 @@ func _refresh() -> void:
 	_refresh_production()
 	_refresh_alerts(cap)
 	_refresh_quality()
+	_refresh_mute()
 	_victory_banner.visible = bool(GameState.victory)
 	_victory02_banner.visible = bool(GameState.victory02)
 	_victory03_banner.visible = bool(GameState.victory03)
@@ -506,18 +513,21 @@ func _on_recruit_pressed() -> void:
 	var err: String = Recruit.train()
 	if err != "":
 		GameState.message = err
+		GameState.message_changed.emit(err)
 
 
 func _on_captain_pressed() -> void:
 	var err: String = Captain.train()
 	if err != "":
 		GameState.message = err
+		GameState.message_changed.emit(err)
 
 
 func _on_explorer_pressed() -> void:
 	var err: String = Explorer.train()
 	if err != "":
 		GameState.message = err
+		GameState.message_changed.emit(err)
 
 
 func _on_quality_pressed(level: String) -> void:
@@ -535,13 +545,102 @@ func _refresh_quality() -> void:
 			btn.modulate = Color(0.55, 0.55, 0.55)
 
 
+func _on_mute_pressed() -> void:
+	AudioManager.set_muted(not AudioManager.muted)
+	_refresh_mute()
+
+
+func _refresh_mute() -> void:
+	if _mute_btn == null:
+		return
+	if AudioManager.muted:
+		_mute_btn.text = "Sonido: OFF"
+		_mute_btn.modulate = Color(0.55, 0.55, 0.55)
+	else:
+		_mute_btn.text = "Sonido: ON"
+		_mute_btn.modulate = Color.WHITE
+
+
 func _on_pause_pressed(id: String) -> void:
 	var bm := _bm()
 	if bm != null and bm.has_method("toggle_pause"):
 		bm.call("toggle_pause", id)
 
 
+## Resetea SOLO los datos de GameState a valores iniciales (testeable sin
+## escena: no toca el árbol ni recarga). Lo usa _reset_full_state() y los tests.
+static func reset_state_data() -> void:
+	GameState.resources = {
+		"madera": 30.0, "piedra": 15.0, "comida": 10.0,
+		"tablon": 0.0, "trigo": 0.0, "harina": 0.0, "pan": 0.0,
+	}
+	var centro_hp: float = float(Economy.BUILDING_HP.get("centro", 500))
+	var centro_radio: float = float((Economy.BUILDINGS["centro"] as Dictionary).get("radio", 3.0))
+	GameState.buildings = [
+		{
+			"id": 1, "type": "centro", "x": 0.0, "z": 0.0,
+			"paused": false, "progress": 0.0, "blocked": false,
+			"hp": centro_hp, "max_hp": centro_hp,
+			"radio": centro_radio, "build_t": 5.0,
+		}
+	]
+	GameState.settlers = []
+	GameState.recruits = []
+	GameState.raiders = []
+	GameState.ai_buildings = [
+		{"id": "ai_centro", "type": "centro", "x": float(Economy.AI_BASE.get("x", 16.0)), "z": float(Economy.AI_BASE.get("z", -20.0)), "hp": 300.0}
+	]
+	GameState.ai_queue = 0
+	GameState.nodes = []
+	GameState.stats = {"tablon": 0.0, "pan": 0.0}
+	GameState.fog.resize(32 * 32)
+	GameState.fog.fill(0)
+	GameState.message = ""
+	GameState.victory = false
+	GameState.victory02 = false
+	GameState.victory03 = false
+	GameState.defeat = false
+	GameState.resources_changed.emit()
+	GameState.buildings_changed.emit()
+	GameState.fog_changed.emit()
+	GameState.message_changed.emit("")
+
+
+## Resetea partida completa: libera actores/nodos, resetea IDs y GameManager,
+## restaura datos vía reset_state_data(). No recarga (lo hace el llamador).
+func _reset_full_state() -> void:
+	var tree := get_tree()
+	if tree != null:
+		for n in tree.get_nodes_in_group("raiders"):
+			if is_instance_valid(n):
+				n.queue_free()
+		for n in tree.get_nodes_in_group("recruits"):
+			if is_instance_valid(n):
+				n.queue_free()
+		for n in tree.get_nodes_in_group("building_nodes"):
+			if is_instance_valid(n):
+				n.queue_free()
+		for n in tree.get_nodes_in_group("ai_building_nodes"):
+			if is_instance_valid(n):
+				n.queue_free()
+		if tree.current_scene != null:
+			for n in tree.current_scene.find_children("*", "CharacterBody3D", true, false):
+				if (n is Settler or n is Recruit or n is Captain or n is Explorer) and is_instance_valid(n):
+					n.queue_free()
+	Settler._next_id = 0
+	Recruit._next_id = 0
+	Captain._next_id = 0
+	Explorer._next_id = 0
+	# GameManager es autoload persistente: si no se resetea, tras el reload
+	# no reaparecen ni el centro ni los 6 colonos (_spawned seguiría true).
+	GameManager.elapsed = 0.0
+	GameManager._grow_t = 0.0
+	GameManager._spawned = false
+	reset_state_data()
+
+
 func _on_restart_pressed() -> void:
+	_reset_full_state()
 	get_tree().reload_current_scene()
 
 
@@ -549,9 +648,11 @@ func _on_save_pressed() -> void:
 	var msg := SaveSystem.save_game()
 	if msg != "":
 		GameState.message = msg
+		GameState.message_changed.emit(msg)
 
 
 func _on_load_pressed() -> void:
 	var msg := SaveSystem.load_game()
 	if msg != "":
 		GameState.message = msg
+		GameState.message_changed.emit(msg)

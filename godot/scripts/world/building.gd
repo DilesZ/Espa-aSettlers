@@ -81,9 +81,15 @@ func _on_body_input_event(_camera: Node, event: InputEvent, _event_pos: Vector3,
 		var mb := event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 			var mgr := get_tree().get_first_node_in_group("build_manager")
-			if mgr != null and mgr.has_method("click_building"):
-				mgr.call("click_building", str(data.get("id", "")))
-			get_viewport().set_input_as_handled()
+			var is_demolish := false
+			if mgr != null:
+				# Solo en demolición se consume el clic: así no se bloquea
+				# el place del terreno (que debe mostrar "Colisiona...").
+				is_demolish = bool(mgr.get("demolish"))
+				if mgr.has_method("click_building"):
+					mgr.call("click_building", str(data.get("id", "")))
+			if is_demolish:
+				get_viewport().set_input_as_handled()
 
 
 func _process(delta: float) -> void:
