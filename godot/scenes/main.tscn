@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/rts_camera.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/world/build_manager.gd" id="2"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://scripts/systems/atmosphere.gd" id="8"]
 [ext_resource type="Script" path="res://scripts/systems/fog_of_war.gd" id="9"]
 [ext_resource type="Script" path="res://scripts/systems/benchmark.gd" id="10"]
+[ext_resource type="Script" path="res://scripts/world/scenery.gd" id="11"]
 
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 2
@@ -91,6 +92,9 @@ script = ExtResource("9")
 
 [node name="Benchmark" type="Node" parent="."]
 script = ExtResource("10")
+
+[node name="Scenery" type="Node3D" parent="."]
+script = ExtResource("11")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("4")

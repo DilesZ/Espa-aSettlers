@@ -16,6 +16,21 @@ var _hp_bg: MeshInstance3D
 var _hp_fg: MeshInstance3D
 var _hp_fg_mat: StandardMaterial3D
 
+## Fases de obra estilo Settlers: el edificio tarda BUILD_TIME en levantarse.
+const BUILD_TIME := 5.0
+const STAGE_PATHS := [
+	"res://assets/cc0/medieval/buildings/neutral/building_stage_A.gltf",
+	"res://assets/cc0/medieval/buildings/neutral/building_stage_B.gltf",
+	"res://assets/cc0/medieval/buildings/neutral/building_stage_C.gltf",
+]
+const SCAFFOLD_PATH := "res://assets/cc0/medieval/buildings/neutral/building_scaffolding.gltf"
+const SCAFFOLD_OFFSET := Vector3(1.8, 0.0, 0.6)
+const ROTOR_SPEED := 2.5
+
+var _final_built := false
+var _stage_shown := -1
+var _rotor: Node3D = null
+
 
 func _ready() -> void:
 	add_to_group("building_nodes")
@@ -35,9 +50,17 @@ func setup(b: Dictionary) -> void:
 	if str(data.get("id", "")) != "":
 		name = "Building_%s" % str(data.get("id"))
 
-	var visual := BuildingFactory.mesh_for(tipo, "blue", str(data.get("id", "")))
-	visual.name = "Visual"
-	add_child(visual)
+	_final_built = false
+	_stage_shown = -1
+	_rotor = null
+	# Sin clave (partidas viejas / centro inicial) = ya construido.
+	var bt := float(b.get("build_t", data.get("build_t", BUILD_TIME)))
+	data["build_t"] = bt
+	if bt < BUILD_TIME:
+		_show_construction_stage(_stage_index_for(bt))
+	else:
+		_final_built = true
+		_build_final_visual(tipo)
 
 	var body := StaticBody3D.new()
 	body.position = Vector3(0.0, 1.75, 0.0)
@@ -63,8 +86,142 @@ func _on_body_input_event(_camera: Node, event: InputEvent, _event_pos: Vector3,
 			get_viewport().set_input_as_handled()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	refresh_hp_bar()
+	_tick_construction(delta)
+	_tick_windmill(delta)
+
+
+## Obra: avanza build_t en el dict vivo de GameState (como la HP) y al
+## llegar a BUILD_TIME instancia el visual definitivo una sola vez.
+func _tick_construction(delta: float) -> void:
+	if _final_built:
+		return
+	if not is_inside_tree():
+		return
+	var my_id := str(data.get("id", ""))
+	var live := _live_dict()
+	if not _builds_has_id(my_id):
+		return # demolido durante la obra: el manager libera el nodo
+	var t := float(live.get("build_t", data.get("build_t", 0.0)))
+	if t >= BUILD_TIME:
+		_finish_construction()
+		return
+	t += delta
+	live["build_t"] = t
+	data["build_t"] = t
+	if not is_instance_valid(self):
+		return
+	if t >= BUILD_TIME:
+		_finish_construction()
+		return
+	var idx := _stage_index_for(t)
+	if idx != _stage_shown:
+		_show_construction_stage(idx)
+
+
+func _builds_has_id(my_id: String) -> bool:
+	if my_id == "":
+		return true
+	for b in GameState.buildings:
+		if b is Dictionary and str((b as Dictionary).get("id", "")) == my_id:
+			return true
+	return false
+
+
+func _stage_index_for(t: float) -> int:
+	return clampi(int(t / BUILD_TIME * 3.0), 0, 2)
+
+
+## Muestra stage A/B/C según tercio + andamio al lado. Fallback al visual
+## final si el .gltf falta o no instancia.
+func _show_construction_stage(idx: int) -> void:
+	if not is_instance_valid(self) or not is_inside_tree():
+		return
+	_stage_shown = idx
+	var old := get_node_or_null("Construction")
+	if old != null and is_instance_valid(old):
+		remove_child(old)
+		old.queue_free()
+	var cons := Node3D.new()
+	cons.name = "Construction"
+	add_child(cons)
+	var stage: Node = _instance_gltf(STAGE_PATHS[idx])
+	if stage == null:
+		stage = BuildingFactory.mesh_for(str(data.get("type", "centro")), "blue", str(data.get("id", "")))
+	if is_instance_valid(stage):
+		cons.add_child(stage)
+	var scaf: Node = _instance_gltf(SCAFFOLD_PATH)
+	if scaf != null and is_instance_valid(scaf):
+		if scaf is Node3D:
+			(scaf as Node3D).position = SCAFFOLD_OFFSET
+		cons.add_child(scaf)
+
+
+func _finish_construction() -> void:
+	if _final_built:
+		return
+	if not is_instance_valid(self):
+		return
+	_final_built = true
+	var live := _live_dict()
+	live["build_t"] = BUILD_TIME
+	data["build_t"] = BUILD_TIME
+	var cons := get_node_or_null("Construction")
+	if cons != null and is_instance_valid(cons):
+		remove_child(cons)
+		cons.queue_free()
+	_stage_shown = -1
+	if get_node_or_null("Visual") == null:
+		_build_final_visual(str(data.get("type", "centro")))
+
+
+## Visual definitivo (lógica original de setup, reutilizada tras la obra).
+func _build_final_visual(tipo: String) -> void:
+	if get_node_or_null("Visual") != null:
+		_find_rotor()
+		return
+	var visual := BuildingFactory.mesh_for(tipo, "blue", str(data.get("id", "")))
+	visual.name = "Visual"
+	add_child(visual)
+	_find_rotor()
+
+
+func _instance_gltf(path: String) -> Node:
+	if not ResourceLoader.exists(path):
+		return null
+	var packed := load(path) as PackedScene
+	if packed != null and packed.can_instantiate():
+		return packed.instantiate()
+	return null
+
+
+## Molino: busca el hijo de aspas (blade/aspa/rotor/fan) sin tocar Visual.
+func _find_rotor() -> void:
+	_rotor = null
+	var tipo := str(data.get("type", "")).to_lower()
+	if not (tipo.contains("molino") or tipo.contains("windmill") or tipo.contains("mill")):
+		return
+	var vis := get_node_or_null("Visual")
+	if vis == null or not is_instance_valid(vis):
+		return
+	for k in vis.find_children("*", "", true, false):
+		if k is Node3D:
+			var nn := (k as Node).name.to_lower()
+			if nn.contains("blade") or nn.contains("aspa") or nn.contains("rotor") or nn.contains("fan") or nn.contains("molino"):
+				_rotor = k as Node3D
+				break
+
+
+func _tick_windmill(delta: float) -> void:
+	if _rotor == null or not is_instance_valid(_rotor):
+		return
+	if not _final_built:
+		return
+	var live := _live_dict()
+	if bool(live.get("paused", data.get("paused", false))):
+		return
+	_rotor.rotate_z(ROTOR_SPEED * delta)
 
 
 ## Barra HP con billboard: verde >50%, amarilla >25%, roja; oculta si llena.
