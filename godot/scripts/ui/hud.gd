@@ -20,6 +20,33 @@ const LIGHT := Color(0.92, 0.93, 0.95)
 const DIM := Color(0.70, 0.72, 0.78)
 const GOOD := Color(0.50, 0.93, 0.60)
 const BAD := Color(0.95, 0.45, 0.45)
+const WOOD_BG := Color("#3a2a1a")
+const GOLD := Color("#c9a227")
+const PARCHMENT := Color("#f5e6c8")
+const RES_COLORS: Dictionary = {
+	"madera": Color("#8b5a2b"),
+	"piedra": Color("#999999"),
+	"comida": Color("#e9c46a"),
+	"tablon": Color("#b5835a"),
+	"trigo": Color("#d4a373"),
+	"harina": Color("#e5e5e5"),
+	"pan": Color("#c08552"),
+}
+const BUILDING_DESC: Dictionary = {
+	"lenador": "Tala árboles cercanos para conseguir madera.",
+	"cantera": "Extrae piedra de las rocas cercanas.",
+	"casa": "Vivienda: +4 capacidad de colonos.",
+	"almacen": "Aumenta la capacidad de almacén en +100.",
+	"aserradero": "Convierte madera en tablones.",
+	"granja": "Produce trigo con el tiempo.",
+	"molino": "Muele trigo para hacer harina.",
+	"panaderia": "Hornea harina: da pan y comida.",
+	"pescador": "Pesca comida junto al río (x≥12).",
+	"torre": "Defiende la colonia de los saqueadores.",
+	"muralla": "Muro barato que bloquea el paso.",
+	"puerta": "Deja pasar a través de la muralla.",
+	"mercado": "Edificio avanzado de apoyo económico.",
+}
 
 var _accum := 0.0
 var _res_labels: Dictionary = {}
@@ -63,9 +90,9 @@ func _process(delta: float) -> void:
 
 func _panel_style() -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.09, 0.11, 0.16, 0.93)
-	sb.border_color = Color(0.30, 0.33, 0.40)
-	sb.set_border_width_all(1)
+	sb.bg_color = Color(WOOD_BG.r, WOOD_BG.g, WOOD_BG.b, 0.95)
+	sb.border_color = GOLD
+	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(6)
 	sb.content_margin_left = 8.0
 	sb.content_margin_right = 8.0
@@ -84,7 +111,7 @@ func _title(text: String) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", 14)
-	l.add_theme_color_override("font_color", LIGHT)
+	l.add_theme_color_override("font_color", GOLD)
 	return l
 
 
@@ -94,26 +121,29 @@ func _dark_button(text: String) -> Button:
 	b.focus_mode = Control.FOCUS_NONE
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.16, 0.19, 0.26, 1.0)
-	normal.border_color = Color(0.35, 0.39, 0.48)
+	normal.bg_color = Color("#5a4028")
+	normal.border_color = GOLD
 	normal.set_border_width_all(1)
 	normal.set_corner_radius_all(4)
 	normal.content_margin_left = 6.0
 	normal.content_margin_right = 6.0
 	var hover: StyleBoxFlat = normal.duplicate()
-	hover.bg_color = Color(0.22, 0.26, 0.35, 1.0)
+	hover.bg_color = Color("#6f502f")
+	hover.border_color = Color("#e3c84b")
 	var pressed: StyleBoxFlat = normal.duplicate()
-	pressed.bg_color = Color(0.13, 0.45, 0.55, 1.0)
+	pressed.bg_color = Color("#2a1e12")
+	pressed.border_color = GOLD
 	var disabled: StyleBoxFlat = normal.duplicate()
-	disabled.bg_color = Color(0.12, 0.13, 0.17, 1.0)
+	disabled.bg_color = Color("#3a2a1a")
+	disabled.border_color = Color(0.45, 0.38, 0.25)
 	b.add_theme_stylebox_override("normal", normal)
 	b.add_theme_stylebox_override("hover", hover)
 	b.add_theme_stylebox_override("pressed", pressed)
 	b.add_theme_stylebox_override("disabled", disabled)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	b.add_theme_color_override("font_color", LIGHT)
-	b.add_theme_color_override("font_hover_color", LIGHT)
-	b.add_theme_color_override("font_pressed_color", Color.WHITE)
+	b.add_theme_color_override("font_color", PARCHMENT)
+	b.add_theme_color_override("font_hover_color", Color.WHITE)
+	b.add_theme_color_override("font_pressed_color", Color("#e3c84b"))
 	return b
 
 
@@ -133,20 +163,25 @@ func _build_topbar() -> void:
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 	top.add_child(hb)
 	for k in RES_KEYS:
+		var dot := ColorRect.new()
+		dot.color = RES_COLORS.get(k, Color.WHITE)
+		dot.custom_minimum_size = Vector2(12, 12)
+		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		hb.add_child(dot)
 		var l := Label.new()
 		l.add_theme_font_size_override("font_size", 13)
-		l.add_theme_color_override("font_color", LIGHT)
+		l.add_theme_color_override("font_color", PARCHMENT)
 		hb.add_child(l)
 		_res_labels[k] = l
 	var sep := VSeparator.new()
 	hb.add_child(sep)
 	_settlers_label = Label.new()
 	_settlers_label.add_theme_font_size_override("font_size", 13)
-	_settlers_label.add_theme_color_override("font_color", LIGHT)
+	_settlers_label.add_theme_color_override("font_color", PARCHMENT)
 	hb.add_child(_settlers_label)
 	_buildings_label = Label.new()
 	_buildings_label.add_theme_font_size_override("font_size", 13)
-	_buildings_label.add_theme_color_override("font_color", LIGHT)
+	_buildings_label.add_theme_color_override("font_color", PARCHMENT)
 	hb.add_child(_buildings_label)
 	var restart := _dark_button("Reiniciar")
 	restart.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -190,6 +225,7 @@ func _build_palette() -> void:
 		var nombre := str(Economy.BUILDINGS[t]["nombre"])
 		var b := _dark_button("%s\n%s" % [nombre, _cost_text(t)])
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.tooltip_text = _building_tooltip(str(t))
 		b.pressed.connect(_on_palette_pressed.bind(t))
 		box.add_child(b)
 		_palette_btns[t] = b
@@ -495,6 +531,12 @@ func _cost_text(t: String) -> String:
 	if parts.is_empty():
 		return "gratis"
 	return " + ".join(parts)
+
+
+func _building_tooltip(t: String) -> String:
+	var nombre := str(Economy.BUILDINGS.get(t, {}).get("nombre", t))
+	var desc := str(BUILDING_DESC.get(t, "Edificio de la colonia."))
+	return "%s (%s): %s" % [nombre, _cost_text(t), desc]
 
 
 func _on_palette_pressed(t: String) -> void:

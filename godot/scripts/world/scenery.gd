@@ -36,6 +36,10 @@ var _seen_player := {}
 var _seen_ai := {}
 var _warned := {}
 var _flag_timer := 0.0
+var _settlers_t := 0.0
+var _foam_mat: StandardMaterial3D
+var _wave_mi: MeshInstance3D
+var _wave_mat: StandardMaterial3D
 
 
 func _ready() -> void:
@@ -44,6 +48,10 @@ func _ready() -> void:
 	_spawn_mountains()
 	_spawn_waterplants()
 	_spawn_well_and_props()
+	_spawn_ground_cover()
+	_spawn_foam_shore()
+	_spawn_tall_grass_and_flowers()
+	_spawn_wave_cap()
 	_refresh_flags()
 	if GameState.has_signal("buildings_changed"):
 		if not GameState.buildings_changed.is_connected(_refresh_flags):
@@ -60,6 +68,7 @@ func _process(delta: float) -> void:
 	if _flag_timer >= 0.5:
 		_flag_timer = 0.0
 		_refresh_flags()
+	_animate_settlers(delta)
 
 
 func _inst(path: String) -> Node3D:
@@ -163,3 +172,239 @@ func _refresh_flags() -> void:
 		var n := _place(FLAG_RED, Vector3(float(b.get("x", 0.0)), FLAG_Y, float(b.get("z", 0.0))))
 		if n != null:
 			_seen_ai[bid] = n
+
+
+# --- Look Settlers: todo procedural por código, sin assets nuevos ---
+
+func _animate_settlers(delta: float) -> void:
+	_settlers_t += delta
+	if _foam_mat != null:
+		var fc := _foam_mat.albedo_color
+		fc.a = clampf(0.35 + sin(_settlers_t * 2.0) * 0.12, 0.08, 0.6)
+		_foam_mat.albedo_color = fc
+	if _wave_mi != null and is_instance_valid(_wave_mi):
+		_wave_mi.position.z = sin(_settlers_t * 0.9) * 0.6
+	if _wave_mat != null:
+		var wc := _wave_mat.albedo_color
+		wc.a = clampf(0.25 + sin(_settlers_t * 1.3 + 1.0) * 0.07, 0.05, 0.5)
+		_wave_mat.albedo_color = wc
+
+
+# 1) Manto de hierba: plano propio 64x64 a y=0.02 (el suelo de main.tscn
+# no se toca) con ImageTexture 512 procedural y uv1_scale (3,3,3).
+func _spawn_ground_cover() -> void:
+	var tex := _make_grass_texture()
+	if tex == null:
+		return
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = tex
+	mat.uv1_scale = Vector3(3.0, 3.0, 3.0)
+	mat.roughness = 1.0
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(64.0, 64.0)
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	mi.position = Vector3(0.0, 0.02, 0.0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
+func _make_grass_texture() -> ImageTexture:
+	var noise := FastNoiseLite.new()
+	noise.seed = 99
+	noise.frequency = 0.03
+	noise.fractal_octaves = 3
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99
+	var base := Color8(74, 124, 58)
+	var dark := Color8(60, 104, 48)
+	var mid := Color8(85, 133, 63)
+	var light := Color8(103, 156, 75)
+	var speck := Color8(143, 191, 106)
+	var img := Image.create(512, 512, false, Image.FORMAT_RGB8)
+	if img == null:
+		return null
+	for y in 512:
+		for x in 512:
+			var n := noise.get_noise_2d(float(x), float(y))
+			var c := base
+			if n < -0.3:
+				c = dark
+			elif n < 0.15:
+				c = base
+			elif n < 0.5:
+				c = mid
+			else:
+				c = light
+			var r := rng.randf()
+			if r < 0.02:
+				c = speck
+			elif r < 0.07:
+				c = c.darkened(0.15)
+			img.set_pixel(x, y, c)
+	return ImageTexture.create_from_image(img)
+
+
+# 2) Orilla con espuma: franja 2x64 en x=21 (borde del río) a y=0.08.
+# Se anima por referencia guardada (_foam_mat), sin surface_get_material.
+func _spawn_foam_shore() -> void:
+	_foam_mat = StandardMaterial3D.new()
+	_foam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_foam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_foam_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.35)
+	_foam_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(2.0, 64.0)
+	var mi := MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = _foam_mat
+	mi.position = Vector3(21.0, 0.08, 0.0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
+# 3) Hierba alta (300 matas en cruz) + flores (80 con color por instancia).
+func _spawn_tall_grass_and_flowers() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	_spawn_grass_clumps(rng)
+	_spawn_flowers(rng)
+
+
+func _spawn_grass_clumps(rng: RandomNumberGenerator) -> void:
+	if rng == null:
+		return
+	var mesh := _make_cross_quad_mesh(0.3, 0.3)
+	if mesh == null:
+		return
+	var green := StandardMaterial3D.new()
+	green.albedo_color = Color(0.25, 0.5, 0.2)
+	green.roughness = 1.0
+	green.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = false
+	mm.mesh = mesh
+	mm.instance_count = 300
+	var placed := 0
+	var attempts := 0
+	while placed < 300 and attempts < 3000:
+		attempts += 1
+		var pos := _settlers_spot(rng)
+		if pos == Vector3.INF:
+			continue
+		var ang := rng.randf_range(0.0, TAU)
+		var s := rng.randf_range(0.8, 1.3)
+		var b := Basis(Vector3.UP, ang).scaled(Vector3(s, s, s))
+		mm.set_instance_transform(placed, Transform3D(b, pos))
+		placed += 1
+	if placed == 0:
+		return
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = green
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mmi)
+
+
+func _spawn_flowers(rng: RandomNumberGenerator) -> void:
+	if rng == null:
+		return
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.15, 0.2)
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color(1.0, 1.0, 1.0)
+	white.roughness = 1.0
+	white.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = quad
+	mm.instance_count = 80
+	var palette := [Color(1, 1, 1), Color(1.0, 0.85, 0.2), Color(0.9, 0.2, 0.2)]
+	var placed := 0
+	var attempts := 0
+	while placed < 80 and attempts < 2000:
+		attempts += 1
+		var pos := _settlers_spot(rng)
+		if pos == Vector3.INF:
+			continue
+		pos.y = 0.12
+		var ang := rng.randf_range(0.0, TAU)
+		var s := rng.randf_range(0.8, 1.2)
+		var b := Basis(Vector3.UP, ang).scaled(Vector3(s, s, s))
+		mm.set_instance_transform(placed, Transform3D(b, pos))
+		mm.set_instance_color(placed, palette[rng.randi_range(0, palette.size() - 1)])
+		placed += 1
+	if placed == 0:
+		return
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = white
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mmi)
+
+
+func _make_cross_quad_mesh(w: float, h: float) -> ArrayMesh:
+	var hw := w * 0.5
+	var verts := PackedVector3Array([
+		Vector3(-hw, 0.0, 0.0), Vector3(hw, 0.0, 0.0),
+		Vector3(hw, h, 0.0), Vector3(-hw, h, 0.0),
+		Vector3(0.0, 0.0, -hw), Vector3(0.0, 0.0, hw),
+		Vector3(0.0, h, hw), Vector3(0.0, h, -hw),
+	])
+	var normals := PackedVector3Array([
+		Vector3(0, 0, 1), Vector3(0, 0, 1), Vector3(0, 0, 1), Vector3(0, 0, 1),
+		Vector3(1, 0, 0), Vector3(1, 0, 0), Vector3(1, 0, 0), Vector3(1, 0, 0),
+	])
+	var uvs := PackedVector2Array([
+		Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0),
+		Vector2(0, 1), Vector2(1, 1), Vector2(1, 0), Vector2(0, 0),
+	])
+	var idx := PackedInt32Array([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7])
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_NORMAL] = normals
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_INDEX] = idx
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return mesh
+
+
+# Punto válido: evita el río (x<21) y el centro (dist>4).
+func _settlers_spot(rng: RandomNumberGenerator) -> Vector3:
+	if rng == null:
+		return Vector3.INF
+	for i in 20:
+		var x := rng.randf_range(-32.0, 20.9)
+		var z := rng.randf_range(-32.0, 32.0)
+		if Vector2(x, z).length() < 4.0:
+			continue
+		if x >= 21.0:
+			continue
+		return Vector3(x, 0.02, z)
+	return Vector3.INF
+
+
+# 4) Tercera capa de agua: Atmosphere ya deriva 2 planos (y 0.06/0.10,
+# sin/cos lento 0.3 + pulso de alfa). Aquí rizo rápido de amplitud
+# pequeña (sin 0.9 x0.6) + pulso de alfa en contrafase a y=0.12.
+func _spawn_wave_cap() -> void:
+	_wave_mat = StandardMaterial3D.new()
+	_wave_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_wave_mat.albedo_color = Color(0.25, 0.55, 0.92, 0.25)
+	_wave_mat.roughness = 0.25
+	_wave_mat.metallic = 0.35
+	_wave_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(10.0, 64.0)
+	_wave_mi = MeshInstance3D.new()
+	_wave_mi.mesh = mesh
+	_wave_mi.material_override = _wave_mat
+	_wave_mi.position = Vector3(27.0, 0.12, 0.0)
+	_wave_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_wave_mi)
