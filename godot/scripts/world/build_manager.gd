@@ -156,6 +156,7 @@ func _try_place(x: float, z: float) -> void:
 		"hp": hp,
 		"max_hp": hp,
 		"radio": radio,
+		"build_t": 0.0,
 	}
 	GameState.buildings.append(b)
 	GameState.buildings_changed.emit()
