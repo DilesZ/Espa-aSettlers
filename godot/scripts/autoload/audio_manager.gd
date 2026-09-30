@@ -66,9 +66,11 @@ func _build_pool() -> void:
 
 
 func _start_ambient() -> void:
+	if _ambient != null and is_instance_valid(_ambient):
+		return
 	_ambient = AudioStreamPlayer.new()
 	_ambient.bus = "Master"
-	_ambient.volume_db = -28.0
+	_ambient.volume_db = -36.0
 	_ambient.stream = sounds["ambient"] as AudioStreamWAV
 	add_child(_ambient)
 	_ambient.play()
@@ -76,16 +78,16 @@ func _start_ambient() -> void:
 
 # --- Síntesis ---
 
-## Barrido de frecuencia con una sola forma de onda.
+## Barrido de frecuencia con una sola forma de onda (16-bit, sin siseo).
 func _sweep(wave: int, f0: float, f1: float, seconds: float) -> AudioStreamWAV:
 	var n := int(RATE * seconds)
 	var data := PackedByteArray()
-	data.resize(n)
+	data.resize(n * 2)
 	var phase := 0.0
 	for i in n:
 		var f := lerpf(f0, f1, float(i) / float(maxi(n - 1, 1)))
 		phase += f / RATE
-		data[i] = _to_byte(_wave_sample(wave, phase) * _envelope(i, n) * 0.5)
+		data.encode_s16(i * 2, _to_s16(_wave_sample(wave, phase) * _envelope(i, n) * 0.5))
 	return _to_stream(data)
 
 
@@ -93,13 +95,13 @@ func _sweep(wave: int, f0: float, f1: float, seconds: float) -> AudioStreamWAV:
 func _melody(wave: int, freqs: Array, note_seconds: float) -> AudioStreamWAV:
 	var per := int(RATE * note_seconds)
 	var data := PackedByteArray()
-	data.resize(per * freqs.size())
+	data.resize(per * freqs.size() * 2)
 	for ni in freqs.size():
 		var f := float(freqs[ni])
 		var phase := 0.0
 		for i in per:
 			phase += f / RATE
-			data[ni * per + i] = _to_byte(_wave_sample(wave, phase) * _envelope(i, per) * 0.5)
+			data.encode_s16((ni * per + i) * 2, _to_s16(_wave_sample(wave, phase) * _envelope(i, per) * 0.5))
 	return _to_stream(data)
 
 
@@ -125,37 +127,46 @@ func _envelope(i: int, n: int) -> float:
 	return minf(a, d)
 
 
-func _to_byte(v: float) -> int:
-	return clampi(int(roundf(v * 127.0)) + 128, 0, 255)
+func _to_s16(v: float) -> int:
+	return clampi(int(roundf(v * 32767.0)), -32768, 32767)
 
 
 func _to_stream(data: PackedByteArray) -> AudioStreamWAV:
 	var s := AudioStreamWAV.new()
-	s.format = AudioStreamWAV.FORMAT_8_BITS
+	s.format = AudioStreamWAV.FORMAT_16_BITS
 	s.mix_rate = RATE
 	s.stereo = false
 	s.data = data
 	return s
 
 
-## Ruido blanco de 2 s en loop, suavizado con media móvil (lowpass aprox).
+## Viento suave: ruido 4 s en loop con crossfade de 1 s (sin clic),
+## lowpass fuerte (media de 64) y fundidos. 16-bit, volumen bajo.
 func _ambient_stream() -> AudioStreamWAV:
-	var n := RATE * 2
-	var window := 16
+	var n := RATE * 4
+	var fade := RATE * 1
+	var window := 64
+	# Señal suavizada extendida para poder fundir el final con el inicio.
+	var sm := PackedFloat32Array()
+	sm.resize(n + fade)
 	var buf := PackedFloat32Array()
-	buf.resize(n)
-	for i in n:
+	buf.resize(n + fade + window)
+	for i in n + fade + window:
 		buf[i] = randf_range(-1.0, 1.0)
-	var data := PackedByteArray()
-	data.resize(n)
 	var acc := 0.0
-	for i in n:
-		acc += buf[i]
+	for i in n + fade:
+		acc += buf[i + window / 2]
 		if i >= window:
-			acc -= buf[i - window]
-		var avg := acc / float(mini(i + 1, window))
-		var edge := minf(1.0, float(mini(i, n - 1 - i)) / float(RATE / 4))
-		data[i] = _to_byte(avg * edge * 0.5)
+			acc -= buf[i - window + window / 2]
+		sm[i] = acc / float(window)
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	for i in n:
+		var v: float = sm[i]
+		if i >= n - fade:
+			var w := float(i - (n - fade)) / float(fade)
+			v = lerpf(sm[i], sm[i - (n - fade)], w)
+		data.encode_s16(i * 2, _to_s16(v * 0.22))
 	var s := _to_stream(data)
 	s.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	s.loop_begin = 0

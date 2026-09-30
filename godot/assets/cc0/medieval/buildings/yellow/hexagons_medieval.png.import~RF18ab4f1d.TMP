@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cqxjq2v4f88rn"
-path="res://.godot/imported/hexagons_medieval.png-74706de29e96ac18ee1e7d555051a7c3.ctex"
+uid="uid://dkft4f6ebvp1d"
+path="res://.godot/imported/hexagons_medieval.png-bba13a1d2193e4e6f3361fef1ab9dcfa.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/cc0/medieval/tiles/coast/hexagons_medieval.png"
-dest_files=["res://.godot/imported/hexagons_medieval.png-74706de29e96ac18ee1e7d555051a7c3.ctex"]
+source_file="res://assets/cc0/medieval/buildings/yellow/hexagons_medieval.png"
+dest_files=["res://.godot/imported/hexagons_medieval.png-bba13a1d2193e4e6f3361fef1ab9dcfa.ctex"]
 
 [params]
 
