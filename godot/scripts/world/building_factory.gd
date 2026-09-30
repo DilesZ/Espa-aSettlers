@@ -46,6 +46,10 @@ static func path_for(tipo: String, faction: String, id: String = "") -> String:
 			return "%s/decoration/props/tent.gltf" % BASE
 		"torre":
 			return "%s/buildings/%s/building_tower_A_%s.gltf" % [BASE, f, f]
+		"muralla":
+			return "%s/buildings/neutral/wall_straight.gltf" % BASE
+		"puerta":
+			return "%s/buildings/neutral/wall_straight_gate.gltf" % BASE
 	return ""
 
 
