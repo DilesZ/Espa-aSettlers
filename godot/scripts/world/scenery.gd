@@ -107,11 +107,15 @@ func _spawn_clouds() -> void:
 		var path := CLOUD_BIG if i % 2 == 0 else CLOUD_SMALL
 		var pos := Vector3(
 			_rng.randf_range(-40.0, 40.0),
-			_rng.randf_range(25.0, 35.0),
+			_rng.randf_range(33.0, 40.0),
 			_rng.randf_range(-40.0, 40.0)
 		)
 		var n := _place(path, pos)
 		if n != null:
+			# NOTA: solo transform (posición + escala). No se toca material_override:
+			# las nubes .gltf usan atlas/textura y color por vértice; pisar el
+			# material las dejaría blancas/planas y rompería el ordenado alfa.
+			n.scale = Vector3.ONE * 1.4
 			_clouds.append(n)
 
 
@@ -216,13 +220,20 @@ func _make_grass_texture() -> ImageTexture:
 	noise.seed = 99
 	noise.frequency = 0.03
 	noise.fractal_octaves = 3
+	# Manchas de tierra: ruido aparte de baja frecuencia + umbral alto
+	# (~6 blobs en 512px). Misma semilla 99 para determinismo.
+	var dirt_noise := FastNoiseLite.new()
+	dirt_noise.seed = 99
+	dirt_noise.frequency = 0.012
+	dirt_noise.fractal_octaves = 2
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 99
-	var base := Color8(74, 124, 58)
-	var dark := Color8(60, 104, 48)
-	var mid := Color8(85, 133, 63)
-	var light := Color8(103, 156, 75)
-	var speck := Color8(143, 191, 106)
+	var base := Color8(61, 107, 47) # #3d6b2f
+	var dark := Color8(45, 82, 35) # #2d5223
+	var mid := Color8(74, 124, 58) # #4a7c3a
+	var light := Color8(93, 143, 62) # #5d8f3e
+	var dry := Color8(122, 143, 63) # #7a8f3f, solo en parches (cola alta del ruido)
+	var dirt := Color8(107, 84, 51) # #6b5433 tierra
 	var img := Image.create(512, 512, false, Image.FORMAT_RGB8)
 	if img == null:
 		return null
@@ -230,19 +241,25 @@ func _make_grass_texture() -> ImageTexture:
 		for x in 512:
 			var n := noise.get_noise_2d(float(x), float(y))
 			var c := base
-			if n < -0.3:
+			if n < -0.35:
 				c = dark
-			elif n < 0.15:
+			elif n < -0.05:
 				c = base
-			elif n < 0.5:
+			elif n < 0.3:
 				c = mid
-			else:
+			elif n < 0.6:
 				c = light
+			else:
+				c = dry
+			# Tierra: umbral alto rompe la monotonía con pocos blobs.
+			var d := dirt_noise.get_noise_2d(float(x), float(y))
+			if d > 0.6:
+				c = dirt
 			var r := rng.randf()
-			if r < 0.02:
-				c = speck
-			elif r < 0.07:
-				c = c.darkened(0.15)
+			if r < 0.08:
+				c = c.darkened(0.18)
+			# Baja saturación/brillo global.
+			c = Color(c.r * 0.9, c.g * 0.9, c.b * 0.9)
 			img.set_pixel(x, y, c)
 	return ImageTexture.create_from_image(img)
 

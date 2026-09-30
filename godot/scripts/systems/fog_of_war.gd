@@ -21,7 +21,7 @@ extends Node
 ## - `GameState.fog` vía `Fog.compute_fog(prev, viewers)` (conserva explorado).
 ## - Overlay 3D: `Image` FORMAT_R8 32x32 (byte = estado 0/1/2) → `ImageTexture`
 ##   → plano 64x64 a y=0.15 con ShaderMaterial (sampler2D fog_tex; v=r*255;
-##   alpha 0.85 si v<0.5, 0.4 si v<1.5, 0.0 si no; usa UV).
+##   alpha 0.68 si v<0.5, 0.3 si v<1.5, 0.0 si no; usa UV; tinte #05080f).
 ##   NOTA R8: el canal R normaliza a 0..1, por eso el píxel se escribe como
 ##   `Color(byte/255)` y el shader recupera `texture(...).r * 255.0`.
 ## - Culling enemigo: `visible = Fog.is_cell_visible(...)` en grupos
@@ -43,11 +43,11 @@ void fragment() {
 	float v = texture(fog_tex, UV).r * 255.0;
 	float a = 0.0;
 	if (v < 0.5) {
-		a = 0.85;
+		a = 0.68;
 	} else if (v < 1.5) {
-		a = 0.4;
+		a = 0.3;
 	}
-	ALBEDO = vec3(0.0);
+	ALBEDO = vec3(0.0196, 0.0314, 0.0588);
 	ALPHA = a;
 }
 """

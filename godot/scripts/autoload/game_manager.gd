@@ -24,6 +24,20 @@ func _ready() -> void:
 			var node := AiBuildingNode.new()
 			node.setup(GameState.ai_buildings[0])
 			scene.add_child.call_deferred(node)
+	if "--shot" in OS.get_cmdline_user_args() + OS.get_cmdline_args():
+		_shot_mode()
+
+
+## Modo captura: a los 8 s guarda viewport en user://shot.png y sale.
+## Solo para iteración visual del equipo (no afecta al juego).
+func _shot_mode() -> void:
+	await get_tree().create_timer(8.0).timeout
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var img := get_viewport().get_texture().get_image()
+	var err := img.save_png("user://shot.png")
+	print("SHOT_SAVED err=", err, " size=", img.get_size())
+	get_tree().quit()
 
 func _physics_process(delta: float) -> void:
 	var dt: float = minf(delta, DT_CAP)
