@@ -149,6 +149,14 @@ func _build_topbar() -> void:
 	restart.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	restart.pressed.connect(_on_restart_pressed)
 	hb.add_child(restart)
+	var save_btn := _dark_button("Guardar")
+	save_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	save_btn.pressed.connect(_on_save_pressed)
+	hb.add_child(save_btn)
+	var load_btn := _dark_button("Cargar")
+	load_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	load_btn.pressed.connect(_on_load_pressed)
+	hb.add_child(load_btn)
 
 
 func _build_palette() -> void:
@@ -513,3 +521,15 @@ func _on_pause_pressed(id: String) -> void:
 
 func _on_restart_pressed() -> void:
 	get_tree().reload_current_scene()
+
+
+func _on_save_pressed() -> void:
+	var msg := SaveSystem.save_game()
+	if msg != "":
+		GameState.message = msg
+
+
+func _on_load_pressed() -> void:
+	var msg := SaveSystem.load_game()
+	if msg != "":
+		GameState.message = msg
