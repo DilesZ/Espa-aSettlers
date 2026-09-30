@@ -89,9 +89,33 @@ func _update_environment(day: float, warm: float) -> void:
 	if env == null:
 		env = Environment.new()
 		_world_env.environment = env
-	env.background_mode = Environment.BG_COLOR
-	var col := NIGHT_COLOR.lerp(DAY_COLOR, day)
-	col = col.lerp(SUNSET_COLOR, warm * 0.75)
-	env.background_color = col
+	# Cielo Settlers: ProceduralSkyMaterial en el Sky del Environment.
+	# Funciona en Forward+ y Compatibility (sky procedural soportado en ambos).
+	env.background_mode = Environment.BG_SKY
+	if env.sky == null:
+		env.sky = Sky.new()
+		env.sky.sky_material = ProceduralSkyMaterial.new()
+	var mat := env.sky.sky_material as ProceduralSkyMaterial
+	if mat == null:
+		mat = ProceduralSkyMaterial.new()
+		env.sky.sky_material = mat
+	# Colores base: noche casi negro -> día azul -> atardecer naranja.
+	var horizon := NIGHT_COLOR.lerp(DAY_COLOR, day)
+	horizon = horizon.lerp(SUNSET_COLOR, warm * 0.75)
+	var top_day := Color(0.25, 0.5, 0.9)
+	var top_night := Color(0.005, 0.01, 0.03)
+	var top := top_night.lerp(top_day, day)
+	top = top.lerp(Color(0.9, 0.45, 0.25), warm * 0.4)
+	var ground_h := horizon.darkened(0.45)
+	var ground_b := Color(0.01, 0.01, 0.02).lerp(Color(0.16, 0.12, 0.08), warm * 0.5 + day * 0.2)
+	mat.sky_top_color = top
+	mat.sky_horizon_color = horizon
+	mat.ground_horizon_color = ground_h
+	mat.ground_bottom_color = ground_b
+	mat.sun_angle_max = 8.0 + day * 92.0
+	mat.sun_curve = clampf(0.03 + day * 0.12 - warm * 0.04, 0.01, 0.2)
+	var e := 0.04 + day * 1.0
+	mat.sky_energy_multiplier = e
+	mat.ground_energy_multiplier = e * 0.6
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_BG
 	env.ambient_light_energy = 0.1 + day * 0.6

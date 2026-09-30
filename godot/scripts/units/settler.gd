@@ -24,6 +24,11 @@ const CARRY_POS := Vector3(0.0, 1.7, 0.0)
 const WALK_FREQ := 10.0 ## Frecuencia del balanceo de marcha (rad/s).
 const WALK_BOB := 0.08 ## Amplitud vertical del balanceo al moverse.
 const WALK_TILT := 0.03 ## Inclinación lateral del balanceo (rad).
+const WORK_FREQ := 6.0 ## Frecuencia del hachazo en CHOP/MINE (rad/s).
+const WORK_SWING := 0.3 ## Amplitud lateral al picar/talar (rad).
+const CARRY_TILT := 0.12 ## Inclinación adelante fija al llevar carga (rad).
+const IDLE_FREQ := 2.0 ## Frecuencia de la respiración en idle (rad/s).
+const IDLE_BREATH := 0.01 ## Amplitud de la respiración (escala y 1±0.01).
 
 static var _next_id := 0
 
@@ -159,19 +164,35 @@ func _make_carry_box(color: Color) -> MeshInstance3D:
 	return mi
 
 
-## Balanceo de marcha procedural: en movimiento, Visual bota
-## (|sin(t*10)|*0.08) con leve inclinación; parado vuelve a y=0.
+## Balanceo procedural: marcha (bob + tilt), hachazo en CHOP/MINE
+## (rot z ±0.3 a 6 rad/s), inclinación fija con carga (rot x 0.12) y
+## respiración en idle (escala y 1±0.01). No toca FSM/entrega/nav.
 func _update_walk_visual(delta: float) -> void:
 	_walk_t += delta
 	if _visual == null or not is_instance_valid(_visual):
+		return
+	# Picar/talar: balanceo lateral amplio, como hachazo.
+	if state == State.CHOP or state == State.MINE:
+		_visual.position.y = 0.0
+		_visual.rotation.z = sin(_walk_t * WORK_FREQ) * WORK_SWING
+		_visual.rotation.x = 0.0
+		_visual.scale = Vector3.ONE
 		return
 	var planar := Vector2(velocity.x, velocity.z).length()
 	if planar > 0.5:
 		_visual.position.y = absf(sin(_walk_t * WALK_FREQ)) * WALK_BOB
 		_visual.rotation.z = sin(_walk_t * WALK_FREQ) * WALK_TILT
+		_visual.scale = Vector3.ONE
 	else:
+		# Parado / idle: respiración sutil.
 		_visual.position.y = 0.0
 		_visual.rotation.z = 0.0
+		_visual.scale = Vector3(1.0, 1.0 + sin(_walk_t * IDLE_FREQ) * IDLE_BREATH, 1.0)
+	# Llevar carga: inclinación adelante fija + conserva bob/respiración.
+	if carry != "":
+		_visual.rotation.x = CARRY_TILT
+	else:
+		_visual.rotation.x = 0.0
 
 
 func _physics_process(delta: float) -> void:
