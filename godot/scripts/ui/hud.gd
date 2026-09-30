@@ -28,6 +28,8 @@ var _buildings_label: Label
 var _palette_btns: Dictionary = {}
 var _demolish_btn: Button
 var _recruit_btn: Button
+var _captain_btn: Button
+var _explorer_btn: Button
 var _quality_btns: Dictionary = {}
 var _prod_rows: VBoxContainer
 var _alerts_label: Label
@@ -199,6 +201,14 @@ func _build_palette() -> void:
 	_recruit_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_recruit_btn.pressed.connect(_on_recruit_pressed)
 	vb.add_child(_recruit_btn)
+	_captain_btn = _dark_button("Capitán (30🌾)")
+	_captain_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_captain_btn.pressed.connect(_on_captain_pressed)
+	vb.add_child(_captain_btn)
+	_explorer_btn = _dark_button("Explorador (10🌾)")
+	_explorer_btn.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_explorer_btn.pressed.connect(_on_explorer_pressed)
+	vb.add_child(_explorer_btn)
 	vb.add_child(_title("Calidad"))
 	var qh := HBoxContainer.new()
 	qh.add_theme_constant_override("separation", 4)
@@ -494,6 +504,18 @@ func _on_demolish_pressed() -> void:
 
 func _on_recruit_pressed() -> void:
 	var err: String = Recruit.train()
+	if err != "":
+		GameState.message = err
+
+
+func _on_captain_pressed() -> void:
+	var err: String = Captain.train()
+	if err != "":
+		GameState.message = err
+
+
+func _on_explorer_pressed() -> void:
+	var err: String = Explorer.train()
 	if err != "":
 		GameState.message = err
 
