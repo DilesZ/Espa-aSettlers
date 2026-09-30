@@ -25,6 +25,21 @@ func _ready() -> void:
 	_ghost.name = "Ghost"
 	_ghost.visible = false
 	add_child(_ghost)
+	_sync_nodes.call_deferred()
+
+
+## Crea nodos para edificios que ya existen en el estado (centro inicial,
+## recargas de escena): evita Capitales invisibles.
+func _sync_nodes() -> void:
+	for b in GameState.buildings:
+		if not (b is Dictionary):
+			continue
+		var bid := str((b as Dictionary).get("id", ""))
+		if bid == "" or _find_node(bid) != null:
+			continue
+		var node := BuildingNode.new()
+		add_child(node)
+		node.setup(b as Dictionary)
 
 
 func select_building(t: String) -> void:
