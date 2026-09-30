@@ -12,7 +12,8 @@ extends Node
 ##   máx, barato a 2 Hz), filtrado así:
 ##     * enemigos (grupos "raiders" / "ai_building_nodes") → se ignoran (no aportan visión)
 ##     * `node.get("carry") != null` → Settler (tiene `var carry`) → rango 8
-##     * grupo "recruits" (o clase Recruit) → rango 8
+##     * grupo "recruits" (o clase Recruit) → rango `vision` si existe, 8 si no
+##     * `node.get("vision") != null` (Captain 8, Explorer 20) → rango vision
 ##     * resto de CharacterBody3D → se ignora (seguro por defecto)
 ## - Posición de unidad: `global_position` (nulo-seguro, solo si es Node3D válido).
 ##
@@ -123,10 +124,15 @@ func _build_viewers(tree: SceneTree, gs: Node) -> Array:
 			continue
 		var is_settler: bool = n.get("carry") != null
 		var is_recruit: bool = n.is_in_group("recruits") or n is Recruit
-		if not (is_settler or is_recruit):
+		var has_vision: bool = n.get("vision") != null
+		if not (is_settler or is_recruit or has_vision):
 			continue
+		var unit_range: float = RANGE_UNIT
+		var vis: Variant = n.get("vision")
+		if vis != null and float(vis) > 0.0:
+			unit_range = float(vis)
 		var p: Vector3 = node3d.global_position
-		viewers.append({"x": p.x, "z": p.z, "range": RANGE_UNIT})
+		viewers.append({"x": p.x, "z": p.z, "range": unit_range})
 		count += 1
 	return viewers
 
