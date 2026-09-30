@@ -24,7 +24,7 @@ const BARREL := "res://assets/cc0/medieval/decoration/props/barrel.gltf"
 
 const CLOUD_COUNT := 6
 const CLOUD_SPEED := 0.8
-const CLOUD_WRAP := 45.0
+const CLOUD_WRAP := 60.0
 const MOUNTAIN_EDGE := 34.0
 const MOUNTAIN_STEP := 8.0
 const MOUNTAIN_RANGE := 32.0
@@ -106,9 +106,9 @@ func _spawn_clouds() -> void:
 	for i in CLOUD_COUNT:
 		var path := CLOUD_BIG if i % 2 == 0 else CLOUD_SMALL
 		var pos := Vector3(
-			_rng.randf_range(-40.0, 40.0),
-			_rng.randf_range(33.0, 40.0),
-			_rng.randf_range(-40.0, 40.0)
+			_rng.randf_range(-55.0, 55.0),
+			_rng.randf_range(48.0, 58.0),
+			_rng.randf_range(-55.0, 55.0)
 		)
 		var n := _place(path, pos)
 		if n != null:
@@ -228,10 +228,10 @@ func _make_grass_texture() -> ImageTexture:
 	dirt_noise.fractal_octaves = 2
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 99
-	var base := Color8(61, 107, 47) # #3d6b2f
-	var dark := Color8(45, 82, 35) # #2d5223
-	var mid := Color8(74, 124, 58) # #4a7c3a
-	var light := Color8(93, 143, 62) # #5d8f3e
+	var base := Color8(51, 88, 42) # #33582a
+	var dark := Color8(36, 63, 30) # #243f1e
+	var mid := Color8(64, 104, 47) # #40682f
+	var light := Color8(79, 122, 53) # #4f7a35
 	var dry := Color8(122, 143, 63) # #7a8f3f, solo en parches (cola alta del ruido)
 	var dirt := Color8(107, 84, 51) # #6b5433 tierra
 	var img := Image.create(512, 512, false, Image.FORMAT_RGB8)

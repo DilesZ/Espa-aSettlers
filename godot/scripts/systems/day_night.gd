@@ -20,6 +20,14 @@ var t := 60.0
 
 var _sun: DirectionalLight3D
 var _world_env: WorldEnvironment
+## Compatibility no tiene HDR: misma escena se ve lavada; se compensa bajando
+## exposición (verificado en captura: todo verde lima sobreexpuesto).
+var _exposure_fix := 1.0
+
+
+func _ready() -> void:
+	if RenderingServer.get_current_rendering_method() == "gl_compatibility":
+		_exposure_fix = 0.62
 
 
 func _process(delta: float) -> void:
@@ -77,7 +85,7 @@ func _update_sun(angle: float, day: float, warm: float) -> void:
 		if absf(dir.dot(up)) > 0.98:
 			up = Vector3.FORWARD
 		_sun.look_at(Vector3.ZERO, up)
-	_sun.light_energy = 0.05 + day * 1.25
+	_sun.light_energy = (0.05 + day * 1.25) * _exposure_fix
 	_sun.light_color = DAY_SUN.lerp(WARM_SUN, warm)
 	_sun.shadow_enabled = true
 
@@ -114,8 +122,8 @@ func _update_environment(day: float, warm: float) -> void:
 	mat.ground_bottom_color = ground_b
 	mat.sun_angle_max = 8.0 + day * 92.0
 	mat.sun_curve = clampf(0.03 + day * 0.12 - warm * 0.04, 0.01, 0.2)
-	var e := 0.04 + day * 1.0
+	var e := (0.04 + day * 1.0) * _exposure_fix
 	mat.sky_energy_multiplier = e
 	mat.ground_energy_multiplier = e * 0.6
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_BG
-	env.ambient_light_energy = 0.1 + day * 0.6
+	env.ambient_light_energy = (0.1 + day * 0.6) * _exposure_fix
