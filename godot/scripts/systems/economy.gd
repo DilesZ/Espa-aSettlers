@@ -40,6 +40,7 @@ const BUILDINGS: Dictionary = {
 	"torre": {"nombre": "Torre defensiva", "coste": {"madera": 20, "piedra": 15}, "color": "#6c757d", "radio": 2.0},
 	"muralla": {"nombre": "Muralla", "coste": {"madera": 5, "piedra": 0}, "color": "#9aa0a6", "radio": 1.5},
 	"puerta": {"nombre": "Puerta", "coste": {"madera": 8, "piedra": 2}, "color": "#7d8590", "radio": 1.5},
+	"mercado": {"nombre": "Mercado", "coste": {"madera": 25, "piedra": 15}, "color": "#e8c547", "radio": 2.5},
 }
 
 const BUILDING_HP: Dictionary = {
@@ -56,6 +57,7 @@ const BUILDING_HP: Dictionary = {
 	"torre": 250,
 	"muralla": 300,
 	"puerta": 200,
+	"mercado": 220,
 }
 
 const RECIPES: Dictionary = {

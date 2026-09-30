@@ -34,6 +34,8 @@ static func path_for(tipo: String, faction: String, id: String = "") -> String:
 			return "%s/buildings/%s/building_mine_%s.gltf" % [BASE, f, f]
 		"almacen":
 			return "%s/buildings/%s/building_market_%s.gltf" % [BASE, f, f]
+		"mercado":
+			return "%s/buildings/%s/building_market_%s.gltf" % [BASE, f, f]
 		"aserradero":
 			return "%s/buildings/%s/building_lumbermill_%s.gltf" % [BASE, f, f]
 		"granja":
