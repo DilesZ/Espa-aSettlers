@@ -228,10 +228,10 @@ func _make_grass_texture() -> ImageTexture:
 	dirt_noise.fractal_octaves = 2
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 99
-		var base := Color8(51, 88, 42) # #33582a
-		var dark := Color8(36, 63, 30) # #243f1e
-		var mid := Color8(64, 104, 47) # #40682f
-		var light := Color8(79, 122, 53) # #4f7a35
+	var base := Color8(51, 88, 42) # #33582a
+	var dark := Color8(36, 63, 30) # #243f1e
+	var mid := Color8(64, 104, 47) # #40682f
+	var light := Color8(79, 122, 53) # #4f7a35
 	var dry := Color8(122, 143, 63) # #7a8f3f, solo en parches (cola alta del ruido)
 	var dirt := Color8(107, 84, 51) # #6b5433 tierra
 	var img := Image.create(512, 512, false, Image.FORMAT_RGB8)
