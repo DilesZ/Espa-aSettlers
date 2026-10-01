@@ -33,3 +33,11 @@ var started := false
 func _ready() -> void:
 	fog.resize(32 * 32)
 	fog.fill(0)
+	# Pre-explora la zona de la base (radio 20 en torno a (0,0)) para que
+	# la primera pantalla no arranque en negro por niebla.
+	for cz in range(Fog.FOG_N):
+		for cx in range(Fog.FOG_N):
+			var x := -32.0 + float(cx) * float(Fog.FOG_CELL) + 1.0
+			var z := -32.0 + float(cz) * float(Fog.FOG_CELL) + 1.0
+			if Vector2(x, z).length() <= 20.0:
+				fog[Fog.cell_of(x, z)] = 1

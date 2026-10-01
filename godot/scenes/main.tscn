@@ -113,6 +113,13 @@ script = ExtResource("13")
 [node name="TradeShip" type="Node3D" parent="."]
 script = ExtResource("14")
 
+[node name="TitleScreen" type="CanvasLayer" parent="."]
+script = ExtResource("18")
+
+[node name="PauseMenu" type="CanvasLayer" parent="."]
+visible = false
+script = ExtResource("19")
+
 [node name="Weather" type="Node3D" parent="."]
 script = ExtResource("15")
 
@@ -121,13 +128,6 @@ script = ExtResource("16")
 
 [node name="Events" type="Node" parent="."]
 script = ExtResource("17")
-
-[node name="TitleScreen" type="CanvasLayer" parent="."]
-script = ExtResource("18")
-
-[node name="PauseMenu" type="CanvasLayer" parent="."]
-visible = false
-script = ExtResource("19")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("4")
