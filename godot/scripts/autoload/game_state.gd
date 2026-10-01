@@ -25,6 +25,10 @@ var victory02 := false
 var victory03 := false
 var defeat := false
 var quality := "alto"
+## Flag persistente (los autoloads sobreviven al reload): true = partida ya
+## iniciada, el TitleScreen debe auto-liberarse sin pausar. NINGÚN reset lo
+## pone a false; cada callback lo fija explícitamente.
+var started := false
 
 func _ready() -> void:
 	fog.resize(32 * 32)

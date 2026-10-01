@@ -686,6 +686,7 @@ func _reset_full_state() -> void:
 
 func _on_restart_pressed() -> void:
 	_reset_full_state()
+	GameState.started = true
 	get_tree().reload_current_scene()
 
 

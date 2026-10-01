@@ -8,6 +8,9 @@ extends CanvasLayer
 ## visible al inicio de cada carga de escena (p. ej. añadirlo en _ready de la
 ## escena principal) para que reaparezca tras cada reload_current_scene()
 ## (botón "Título" del PauseMenu / reinicios).
+##
+## Flag persistente GameState.started (el autoload sobrevive al reload):
+## si ya es true, esta instancia se auto-libera SIN pausar ni construir UI.
 
 const SAVE_PATH := "user://savegame.cfg"
 const WOOD_BG := Color("#3a2a1a")
@@ -19,6 +22,11 @@ var _continue_btn: Button
 
 
 func _ready() -> void:
+	# Partida ya iniciada (Nueva/Reiniciar/Continuar + reload): no pausar,
+	# no construir UI, liberar esta instancia.
+	if GameState.started:
+		queue_free()
+		return
 	layer = 20
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build_ui()
@@ -96,6 +104,7 @@ func _build_ui() -> void:
 
 func _on_new_pressed() -> void:
 	_reset_full_state()
+	GameState.started = true
 	var tree := get_tree()
 	if tree == null:
 		return
@@ -109,6 +118,7 @@ func _on_continue_pressed() -> void:
 	if msg != "" and msg != "Partida cargada":
 		GameState.message = msg
 		GameState.message_changed.emit(msg)
+	GameState.started = true
 	var tree := get_tree()
 	if tree == null:
 		return
@@ -124,6 +134,7 @@ func _on_quit_pressed() -> void:
 
 
 # ---------- reset (misma lógica que Hud._reset_full_state + reset_state_data) ----------
+# NOTA: los resets NO tocan GameState.started; cada callback lo fija explícitamente.
 
 ## Resetea SOLO los datos de GameState a valores iniciales (no toca el árbol).
 static func reset_state_data() -> void:

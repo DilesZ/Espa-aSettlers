@@ -11,6 +11,15 @@ const MOUNTAINS := [
 	"res://assets/cc0/medieval/decoration/nature/mountain_B.gltf",
 	"res://assets/cc0/medieval/decoration/nature/mountain_C.gltf",
 ]
+const MOUNTAINS_GREEN := [
+	"res://assets/cc0/medieval/decoration/nature/mountain_A_grass_trees.gltf",
+	"res://assets/cc0/medieval/decoration/nature/mountain_B_grass_trees.gltf",
+	"res://assets/cc0/medieval/decoration/nature/mountain_C_grass_trees.gltf",
+]
+const WATERLILIES := [
+	"res://assets/cc0/medieval/decoration/nature/waterlily_A.gltf",
+	"res://assets/cc0/medieval/decoration/nature/waterlily_B.gltf",
+]
 const WATERPLANTS := [
 	"res://assets/cc0/medieval/decoration/nature/waterplant_A.gltf",
 	"res://assets/cc0/medieval/decoration/nature/waterplant_B.gltf",
@@ -25,7 +34,7 @@ const BARREL := "res://assets/cc0/medieval/decoration/props/barrel.gltf"
 const CLOUD_COUNT := 6
 const CLOUD_SPEED := 0.8
 const CLOUD_WRAP := 60.0
-const MOUNTAIN_EDGE := 34.0
+const MOUNTAIN_EDGE := 38.0
 const MOUNTAIN_STEP := 8.0
 const MOUNTAIN_RANGE := 32.0
 const FLAG_Y := 4.0
@@ -120,6 +129,11 @@ func _spawn_clouds() -> void:
 
 
 func _spawn_mountains() -> void:
+	# Bordes x/z=±38 cada ~8m. Mezcla _grass_trees (verdes, no cubos blancos)
+	# con base para variedad. RNG local semilla 7: no consume _rng global y
+	# conserva determinismo de nubes/waterplants. Fallback silencioso a base.
+	var mrng := RandomNumberGenerator.new()
+	mrng.seed = 7
 	var idx := 0
 	var t := -MOUNTAIN_RANGE
 	while t <= MOUNTAIN_RANGE:
@@ -129,12 +143,25 @@ func _spawn_mountains() -> void:
 			Vector3(t, 0.0, MOUNTAIN_EDGE),
 			Vector3(t, 0.0, -MOUNTAIN_EDGE),
 		]:
-			_place(MOUNTAINS[idx % MOUNTAINS.size()], pos)
+			var path: String = MOUNTAINS_GREEN[idx % MOUNTAINS_GREEN.size()]
+			# 1 de cada 4 en versión rocosa base para variar silueta.
+			if idx % 4 == 3:
+				path = MOUNTAINS[idx % MOUNTAINS.size()]
+			var n := _place(path, pos)
+			if n == null and path != MOUNTAINS[idx % MOUNTAINS.size()]:
+				n = _place(MOUNTAINS[idx % MOUNTAINS.size()], pos)
+			if n != null:
+				var s := mrng.randf_range(1.2, 1.8)
+				n.scale = Vector3.ONE * s
+				n.rotation.y = mrng.randf_range(0.0, TAU)
 			idx += 1
 		t += MOUNTAIN_STEP
 
 
 func _spawn_waterplants() -> void:
+	# Río x 23..31 con jitter. _rng semilla 7 (determinista, la fija _ready).
+	# Doble densidad (paso 2m) + nenúfares intercalados flotando (y=0.14 sobre
+	# la capa wave de scenery y=0.12 / agua atmosphere y 0.06/0.10).
 	var idx := 0
 	var z := -28.0
 	while z <= 28.0:
@@ -143,9 +170,26 @@ func _spawn_waterplants() -> void:
 			0.05,
 			z + _rng.randf_range(-1.0, 1.0)
 		)
-		_place(WATERPLANTS[idx % WATERPLANTS.size()], pos)
+		var n := _place(WATERPLANTS[idx % WATERPLANTS.size()], pos)
+		if n != null:
+			var s := _rng.randf_range(0.9, 1.4)
+			n.scale = Vector3.ONE * s
 		idx += 1
-		z += 4.0
+		z += 2.0
+	var lidx := 0
+	var lz := -27.0
+	while lz <= 27.0:
+		var lpos := Vector3(
+			_rng.randf_range(23.0, 31.0),
+			0.14,
+			lz + _rng.randf_range(-1.2, 1.2)
+		)
+		var ln := _place(WATERLILIES[lidx % WATERLILIES.size()], lpos)
+		if ln != null:
+			var ls := _rng.randf_range(0.8, 1.3)
+			ln.scale = Vector3.ONE * ls
+		lidx += 1
+		lz += 4.5
 
 
 func _spawn_well_and_props() -> void:
@@ -195,14 +239,16 @@ func _animate_settlers(delta: float) -> void:
 
 
 # 1) Manto de hierba: plano propio 64x64 a y=0.02 (el suelo de main.tscn
-# no se toca) con ImageTexture 512 procedural y uv1_scale (3,3,3).
+# no se toca) con ImageTexture 512 procedural y uv1_scale (1,1,1).
+# Escala 1:1 para que u = (x+32)/64 mapee orilla este sin repetir
+# (con 3,3,3 la arena se triplicaría por el tiling).
 func _spawn_ground_cover() -> void:
 	var tex := _make_grass_texture()
 	if tex == null:
 		return
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = tex
-	mat.uv1_scale = Vector3(3.0, 3.0, 3.0)
+	mat.uv1_scale = Vector3(1.0, 1.0, 1.0)
 	mat.roughness = 1.0
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	var mesh := PlaneMesh.new()
@@ -234,6 +280,7 @@ func _make_grass_texture() -> ImageTexture:
 	var light := Color8(79, 122, 53) # #4f7a35
 	var dry := Color8(122, 143, 63) # #7a8f3f, solo en parches (cola alta del ruido)
 	var dirt := Color8(107, 84, 51) # #6b5433 tierra
+	var sand := Color8(194, 168, 120) # #c2a878 arena orilla este/oeste
 	var img := Image.create(512, 512, false, Image.FORMAT_RGB8)
 	if img == null:
 		return null
@@ -255,6 +302,13 @@ func _make_grass_texture() -> ImageTexture:
 			var d := dirt_noise.get_noise_2d(float(x), float(y))
 			if d > 0.6:
 				c = dirt
+			# Arena junto al río: plano 64m con uv 1:1 → u=(x_mundo+32)/64.
+			# x 20..24 → u [0.81,0.88], x 30..34 → u [0.97,1.0] (recortado a
+			# borde del plano en 32). Wobble con n para borde natural, sin
+			# consumir rng (conserva speckle determinista semilla 99).
+			var u := float(x) / 512.0 + n * 0.015
+			if (u >= 0.81 and u <= 0.88) or (u >= 0.965):
+				c = sand
 			var r := rng.randf()
 			if r < 0.08:
 				c = c.darkened(0.18)
@@ -264,20 +318,27 @@ func _make_grass_texture() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
-# 2) Orilla con espuma: franja 2x64 en x=21 (borde del río) a y=0.08.
-# Se anima por referencia guardada (_foam_mat), sin surface_get_material.
+# 2) Orilla con espuma: franja 2x64 en x=21 (borde oeste del río) a y=0.08
+# + 2ª línea en x=31 (borde este). Atmosphere solo deriva agua en x=27
+# (10x64, y 0.06/0.10) sin espuma: no duplica. Mismo _foam_mat compartido
+# para animar ambas en _animate_settlers, sin surface_get_material.
 func _spawn_foam_shore() -> void:
 	_foam_mat = StandardMaterial3D.new()
 	_foam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_foam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_foam_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.35)
 	_foam_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_make_foam_strip(Vector3(21.0, 0.08, 0.0))
+	_make_foam_strip(Vector3(31.0, 0.08, 0.0))
+
+
+func _make_foam_strip(pos: Vector3) -> void:
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(2.0, 64.0)
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
 	mi.material_override = _foam_mat
-	mi.position = Vector3(21.0, 0.08, 0.0)
+	mi.position = pos
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 

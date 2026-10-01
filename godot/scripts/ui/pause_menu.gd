@@ -139,6 +139,7 @@ func _on_load_pressed() -> void:
 
 func _on_restart_pressed() -> void:
 	_reset_full_state()
+	GameState.started = true
 	var tree := get_tree()
 	if tree == null:
 		return
@@ -161,8 +162,10 @@ func _on_sound_pressed() -> void:
 
 func _on_title_pressed() -> void:
 	# Resetea + recarga; el TitleScreen (instanciado visible al inicio por el
-	# cableado) aparece de nuevo y pausa el juego en su _ready.
+	# cableado) aparece de nuevo: started=false para que NO se auto-libere
+	# y pause el juego en su _ready.
 	_reset_full_state()
+	GameState.started = false
 	var tree := get_tree()
 	if tree == null:
 		return
@@ -194,6 +197,7 @@ func _refresh_sound() -> void:
 
 
 # ---------- reset (misma lógica que Hud._reset_full_state + reset_state_data) ----------
+# NOTA: los resets NO tocan GameState.started; cada callback lo fija explícitamente.
 
 ## Resetea SOLO los datos de GameState a valores iniciales (no toca el árbol).
 static func reset_state_data() -> void:

@@ -32,16 +32,28 @@ func _ready() -> void:
 ## Solo para iteración visual del equipo (no afecta al juego).
 func _shot_mode() -> void:
 	# La pantalla de título pausa el juego: descartarla para la captura.
-	var title := get_tree().current_scene.get_node_or_null("TitleScreen")
+	var cs := get_tree().current_scene
+	print("SHOT boot scene=", cs, " paused=", get_tree().paused)
+	# TitleScreen se instancia en el _ready de la escena, posterior al _ready
+	# del autoload: esperar UN frame antes de buscarlo. El SceneTreeTimer corre
+	# en tiempo real aun pausado, así que primero se libera + unpause y
+	# ENTONCES se esperan los 8 s de juego.
+	await get_tree().process_frame
+	var title := get_tree().root.get_node_or_null("Main/TitleScreen")
+	if title == null and cs != null:
+		title = cs.get_node_or_null("TitleScreen")
 	if title != null:
 		get_tree().paused = false
 		title.queue_free()
+		print("SHOT title dismissed")
+	else:
+		print("SHOT no title found")
 	await get_tree().create_timer(8.0).timeout
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	var img := get_viewport().get_texture().get_image()
 	var err := img.save_png("user://shot.png")
-	print("SHOT_SAVED err=", err, " size=", img.get_size())
+	print("SHOT_SAVED err=", err, " size=", img.get_size(), " settlers=", GameState.settlers.size(), " buildings=", GameState.buildings.size(), " elapsed=", elapsed, " paused=", get_tree().paused)
 	get_tree().quit()
 
 func _physics_process(delta: float) -> void:
