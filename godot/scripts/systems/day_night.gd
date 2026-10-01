@@ -15,8 +15,9 @@ const SUNSET_COLOR := Color8(232, 149, 107) # #e8956b
 const DAY_SUN := Color(1.0, 0.96, 0.88)
 const WARM_SUN := Color(1.0, 0.55, 0.30)
 
-## Empieza al mediodía (ángulo TAU/4 → elevación máxima).
-var t := 60.0
+## Empieza en hora dorada de mañana (ángulo ≈0.6 rad → t = 0.6*240/TAU ≈ 23):
+## elevación ~35° subiendo, con calidez en vez del mediodía plano.
+var t := 23.0
 
 var _sun: DirectionalLight3D
 var _world_env: WorldEnvironment

@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=26 format=3]
 
 [ext_resource type="Script" path="res://scripts/world/rts_camera.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/world/build_manager.gd" id="2"]
@@ -17,6 +17,8 @@
 [ext_resource type="Script" path="res://scripts/world/weather.gd" id="15"]
 [ext_resource type="Script" path="res://scripts/systems/trade_routes.gd" id="16"]
 [ext_resource type="Script" path="res://scripts/systems/events.gd" id="17"]
+[ext_resource type="Script" path="res://scripts/ui/title_screen.gd" id="18"]
+[ext_resource type="Script" path="res://scripts/ui/pause_menu.gd" id="19"]
 
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 2
@@ -110,6 +112,13 @@ script = ExtResource("13")
 
 [node name="TradeShip" type="Node3D" parent="."]
 script = ExtResource("14")
+
+[node name="TitleScreen" type="CanvasLayer" parent="."]
+script = ExtResource("18")
+
+[node name="PauseMenu" type="CanvasLayer" parent="."]
+visible = false
+script = ExtResource("19")
 
 [node name="Weather" type="Node3D" parent="."]
 script = ExtResource("15")

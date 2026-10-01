@@ -31,6 +31,11 @@ func _ready() -> void:
 ## Modo captura: a los 8 s guarda viewport en user://shot.png y sale.
 ## Solo para iteración visual del equipo (no afecta al juego).
 func _shot_mode() -> void:
+	# La pantalla de título pausa el juego: descartarla para la captura.
+	var title := get_tree().current_scene.get_node_or_null("TitleScreen")
+	if title != null:
+		get_tree().paused = false
+		title.queue_free()
 	await get_tree().create_timer(8.0).timeout
 	await get_tree().physics_frame
 	await get_tree().physics_frame
