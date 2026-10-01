@@ -26,6 +26,13 @@ var _pitch := -0.7 # Inclinación (negativa = mirando hacia abajo).
 var _distance := 30.0 # Distancia al objetivo (zoom).
 var _last_mouse := Vector2.ZERO # Posición del ratón en el frame anterior.
 var _has_mouse := false # True cuando _last_mouse ya es válido.
+# --- Intro: travelling de entrada (3.5s desde lejos hasta la distancia normal) ---
+const INTRO_DURATION := 3.5 # Duración del barrido de intro (s).
+const INTRO_FROM_DISTANCE := 55.0 # Distancia inicial lejana del travelling.
+var intro_t := 0.0 # Tiempo transcurrido de intro; >= INTRO_DURATION = terminada.
+var _intro_active := true # True mientras el travelling sigue en marcha.
+var _intro_to_distance := 30.0 # Distancia normal (destino del travelling).
+var _intro_to_target := Vector3.ZERO # Objetivo final (centro del mapa).
 
 
 func _ready() -> void:
@@ -48,8 +55,65 @@ func _ready() -> void:
 		_pitch = clampf(-asin(clampf(offset.y / length, -1.0, 1.0)), PITCH_MIN, PITCH_MAX)
 	_target.x = clampf(_target.x, -BOUND, BOUND)
 	_target.z = clampf(_target.z, -BOUND, BOUND)
-	_last_mouse = get_viewport().get_mouse_position()
-	_has_mouse = true
+	var _vp_ready := get_viewport()
+	if _vp_ready != null:
+		_last_mouse = _vp_ready.get_mouse_position()
+		_has_mouse = true
+	# --- Intro: travelling desde distancia 55 hasta la normal, mirando al centro ---
+	_intro_to_distance = _distance
+	_intro_to_target = Vector3.ZERO
+	_target = Vector3.ZERO
+	intro_t = 0.0
+	_intro_active = true
+	var _dir := Vector3(sin(_yaw) * cos(_pitch), -sin(_pitch), cos(_yaw) * cos(_pitch))
+	if _dir.length_squared() > 0.000001:
+		global_position = _target + _dir.normalized() * INTRO_FROM_DISTANCE
+		if is_inside_tree():
+			look_at(_target, Vector3.UP)
+
+
+func _input(event: InputEvent) -> void:
+	if not _intro_active:
+		return
+	if event == null:
+		return
+	# Cualquier clic / tecla / rueda cancela la intro al instante.
+	if event is InputEventMouseButton:
+		if (event as InputEventMouseButton).pressed:
+			_cancel_intro()
+	elif event is InputEventKey:
+		if (event as InputEventKey).pressed and not (event as InputEventKey).echo:
+			_cancel_intro()
+
+
+func _cancel_intro() -> void:
+	_intro_active = false
+	intro_t = INTRO_DURATION
+	_distance = _intro_to_distance
+	_target = _intro_to_target
+
+
+func _is_intro_cancel_held() -> bool:
+	# Polling en _process: cubre botones mantenidos y rueda (sin evento nuevo).
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		return true
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+		return true
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+		return true
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_WHEEL_UP):
+		return true
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_WHEEL_DOWN):
+		return true
+	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		return true
+	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		return true
+	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+		return true
+	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+		return true
+	return false
 
 
 # Dirección "adelante" de la cámara proyectada sobre el suelo (para WASD).
@@ -63,13 +127,40 @@ func _ground_right() -> Vector3:
 
 
 func _process(delta: float) -> void:
+	# Nulo-seguro: sin viewport no hay ratón ni cámara que actualizar.
+	var _vp := get_viewport()
+	if _vp == null:
+		return
 	# Delta del ratón calculada a mano (en _process no hay InputEvent con "relative").
-	var mouse := get_viewport().get_mouse_position()
+	var mouse := _vp.get_mouse_position()
 	if not _has_mouse:
 		_last_mouse = mouse
 		_has_mouse = true
 	var mouse_delta := mouse - _last_mouse
 	_last_mouse = mouse
+
+	# --- Intro: travelling 3.5s desde 55 hasta la normal con ease-out, mirando al centro ---
+	if _intro_active:
+		if _is_intro_cancel_held():
+			_cancel_intro()
+		else:
+			if delta <= 0.0:
+				return
+			intro_t += delta
+			var _p := clampf(intro_t / INTRO_DURATION, 0.0, 1.0)
+			var _e := 1.0 - pow(1.0 - _p, 3.0) # ease-out cúbico
+			_target = _intro_to_target
+			var _eff := lerpf(INTRO_FROM_DISTANCE, _intro_to_distance, _e)
+			var _cp := cos(_pitch)
+			var _sp := sin(_pitch)
+			var _want := _target + Vector3(sin(_yaw) * _cp, -_sp, cos(_yaw) * _cp) * _eff
+			global_position = _want
+			if is_inside_tree() and global_position.distance_squared_to(_target) > 0.0001:
+				look_at(_target, Vector3.UP)
+			if _p >= 1.0:
+				_intro_active = false
+				_distance = _intro_to_distance
+			return
 
 	# --- Pan por teclado: WASD + flechas (Input directo, sin InputMap) ---
 	var move := Vector3.ZERO
@@ -115,4 +206,5 @@ func _process(delta: float) -> void:
 	var desired := _target + Vector3(sin(_yaw) * cos_pitch, -sin_pitch, cos(_yaw) * cos_pitch) * _distance
 	var weight := 1.0 - exp(-SMOOTH * delta)
 	global_position = global_position.lerp(desired, weight)
-	look_at(_target, Vector3.UP)
+	if is_inside_tree() and global_position.distance_squared_to(_target) > 0.0001:
+		look_at(_target, Vector3.UP)
