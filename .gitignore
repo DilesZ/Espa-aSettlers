@@ -48,3 +48,6 @@ build/
 *.exe
 *.pck
 *.zip
+
+# repositorio separado (proyecto Vercel propio)
+/poker/
